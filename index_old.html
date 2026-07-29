@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <title>项目指标看板</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.14.3/dist/index.css">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/element-plus@2.14.3/dist/index.full.min.js"></script>
+</head>
+
+<body>
+
+  <div id="app">
+    <div class="app-container">
+      <div class="header-box">
+        <div>
+          <h2>项目指标看板</h2>
+          <p>📋 说明：蓝色-达标区 | 橙色-警戒区。保本止损：浮盈达 1.5系数后止损抬至入标成本。
+            <span v-if="isFileProtocol" style="color:#e6a23c;font-weight:600;margin-left:8px;">
+              ⚠️ 当前为本地文件模式（file://），系统通知可能被浏览器禁用。建议使用 Live Server（http://localhost）打开。
+            </span>
+          </p>
+        </div>
+        <div class="header-actions">
+          <el-button type="success" @click="openExport">导出</el-button>
+          <el-button @click="openImport">导入</el-button>
+          <el-dropdown @command="onDropdownCommand" style="margin: 0 10px;">
+            <el-button type="primary">
+              语音设置<i class="el-icon--right"><svg viewBox="0 0 1024 1024" style="width:1em;height:1em;"><path fill="currentColor" d="M764.8 505.216a32 32 0 0 1 0 44.608l-344.576 304.64A32 32 0 0 1 368 832.64V192a32 32 0 0 1 52.224-24.64l344.576 304.64z"></path></svg></i>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item v-for="voice in chineseVoices" :key="voice.name" :command="voice.name">
+                  <span v-if="selectedVoice === voice.name" style="color: #67c23a; font-weight: bold;">✓ {{voice.name}}</span>
+                  <span v-else>{{voice.name}}</span>
+                </el-dropdown-item>
+                <el-dropdown-item divided command="test">
+                  <span style="color: #e6a23c;">🔊 测试语音提醒</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-button type="danger" @click="clearAllNotifications">清除通知</el-button>
+        </div>
+      </div>
+
+      <el-tabs v-model="activeTab" type="border-card" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <el-tab-pane label="指标监控" name="monitor" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+          <div class="toolbar">
+            <el-input v-model="inputCodes" type="textarea" :rows="1" placeholder="输入编号（支持批量，空格/逗号分隔）"></el-input>
+            <div class="toolbar-buttons">
+              <div class="button-row">
+                <el-button type="primary" @click="addNewCodes" :loading="loading">查询并追加</el-button>
+                <el-button type="primary" @click="refreshAllPrices" :loading="loading">刷新数据</el-button>
+                <el-button :type="autoRefresh ? 'success' : 'info'" @click="toggleAutoRefresh">
+                  {{autoRefresh ? '自动刷新 ' + autoCountdown + 's' : '30s自动刷新'}}
+                </el-button>
+                <el-button @click="clearAll">清空</el-button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <el-table :data="tableData" height="100%" border style="width: 100%" v-loading="loading"
+              :row-class-name="tableRowClassName">
+              <el-table-column type="expand">
+                <template #default="props">
+                  <div style="padding: 10px 20px; background: #fafafa;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #409eff;">
+                      📊 底仓 (ADR20: {{props.row.adr20 || '-'}})
+                    </div>
+                    <div style="display: flex; gap: 24px; font-size: 12px; padding: 8px; background: #fff; border-radius: 4px; margin-bottom: 8px;">
+                      <span>成本: <strong>{{props.row.buyPrice || '-'}}</strong></span>
+                      <span>数量: <strong>{{props.row.quantity || '-'}}</strong></span>
+                      <span>止盈: <strong class="fib-val" :class="{'flash-tp': hasAlert(props.row.fullCode,'TAKE_PROFIT')}">{{props.row.takeProfit || '-'}}</strong></span>
+                      <span>止损: <strong class="fib-val" :class="{'flash-sl': hasAlert(props.row.fullCode,'STOP_LOSS')}">{{props.row.stopLoss || '-'}}</strong></span>
+                      <span>盈亏: <strong :class="getPnlClass(props.row.pnlAmount)">{{props.row.pnlAmount || '-'}} ({{props.row.pnlPct || '-'}})</strong></span>
+                      <span>{{props.row.toTPPct || '-'}}</span>
+                      <span>{{props.row.toSLPct || '-'}}</span>
+                    </div>
+                    <div v-if="props.row.addPositions && props.row.addPositions.length > 0">
+                      <div style="font-weight: 600; margin: 12px 0 8px; color: #67c23a;">📈 加仓记录</div>
+                      <div v-for="(pos, idx) in props.row.addPositions" :key="pos.id"
+                        style="display: flex; gap: 24px; font-size: 12px; padding: 8px; background: #fff; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid #67c23a;">
+                        <span style="color: #67c23a; font-weight: bold;">加仓{{idx + 1}}</span>
+                        <span>成本: <strong>{{pos.buyPrice || '-'}}</strong></span>
+                        <span>ADR20: <strong>{{pos.adr20 || '-'}}</strong></span>
+                        <span>数量: <strong>{{pos.quantity || '-'}}</strong></span>
+                        <span>止盈: <strong class="fib-val">{{pos.takeProfit || '-'}}</strong></span>
+                        <span>止损: <strong class="fib-val">{{pos.stopLoss || '-'}}</strong></span>
+                        <span>盈亏: <strong :class="getPnlClass(pos.pnlAmount)">{{pos.pnlAmount || '-'}} ({{pos.pnlPct || '-'}})</strong></span>
+                        <span>{{pos.toTPPct || '-'}}</span>
+                        <span>{{pos.toSLPct || '-'}}</span>
+                        <el-button size="small" link type="danger" @click="removeAddPos(props.row, pos.id)">删除</el-button>
+                      </div>
+                    </div>
+                    <div v-else style="color: #909399; font-size: 12px; padding: 8px;">暂无加仓</div>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="name" label="项目 / 编号" min-width="140" fixed="left">
+                <template #default="scope">
+                  <div style="font-weight: 600; color: #303133">
+                    <span
+                      :class="['market-tag', 'tag-' + getMarket(scope.row.fullCode)]">{{getMarketLabel(scope.row.fullCode)}}</span>
+                    {{scope.row.name}}
+                    <span v-if="scope.row.addPositions && scope.row.addPositions.length > 0"
+                      style="background: #67c23a; color: #fff; font-size: 10px; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">
+                      +{{scope.row.addPositions.length}}
+                    </span>
+                  </div>
+                  <div style="font-size: 11px; color: #c0c4cc; margin-left: 32px;">{{scope.row.fullCode}}</div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="当前值 / 波动" width="160">
+                <template #default="scope">
+                  <div>
+                    <span class="price-now" :class="[getChgClass(scope.row),{ 'flash-now-tp': hasAlert(scope.row.fullCode,'TAKE_PROFIT'), 'flash-now-sl': hasAlert(scope.row.fullCode,'STOP_LOSS') }]">
+                      {{scope.row.now}}
+                    </span>
+                  </div>
+                  <div class="sub-line" :class="getChgClass(scope.row)">
+                    {{formatChg(scope.row)}}
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="均线" width="80">
+                <template #default="scope"><span class="fib-val">{{scope.row.avg}}</span></template>
+              </el-table-column>
+
+              <el-table-column label="止盈止损" width="170">
+                <template #default="scope">
+                  <div style="font-size: 12px;">
+                    <div class="fib-val" :class="{'flash-tp': hasAlert(scope.row.fullCode,'TAKE_PROFIT')}">止盈
+                      {{scope.row.takeProfit || '-'}}</div>
+                    <div class="fib-val" style="margin-top:2px;"
+                      :class="{'flash-sl': hasAlert(scope.row.fullCode,'STOP_LOSS')}">止损 {{scope.row.stopLoss || '-'}}
+                    </div>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="距离(%)" width="130">
+                <template #default="scope">
+                  <div style="font-size: 12px;">
+                    <div v-if="scope.row.toTPPct !== undefined && scope.row.toTPPct !== ''" class="sub-line"
+                      :class="[getPnlClass(scope.row._toTPNum), {'flash-tp': hasAlert(scope.row.fullCode,'TAKE_PROFIT')}]">
+                      {{scope.row.toTPPct}}</div>
+                    <div v-else class="sub-line">距止盈 -</div>
+                    <div v-if="scope.row.toSLPct !== undefined && scope.row.toSLPct !== ''" class="sub-line"
+                      :class="[getPnlClass(scope.row._toSLNum), {'flash-sl': hasAlert(scope.row.fullCode,'STOP_LOSS')}]"
+                      style="margin-top:2px;">{{scope.row.toSLPct}}</div>
+                    <div v-else class="sub-line" style="margin-top:2px;">距止损 -</div>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <!-- <el-table-column label="收益" min-width="110">
+<template #default="scope">
+<div>
+<span v-if="scope.row.pnlAmount !== undefined && scope.row.pnlAmount !== ''" :class="getPnlClass(scope.row.pnlAmount)" class="fib-val">{{scope.row.pnlAmount}}</span>
+<span v-else style="color:#c0c4cc">-</span>
+</div>
+<div class="sub-line" v-if="scope.row.pnlPct !== undefined && scope.row.pnlPct !== ''" :class="getPnlClass(scope.row.pnlAmount)">{{scope.row.pnlPct}}</div>
+</template>
+</el-table-column> -->
+
+              <el-table-column label="黄金分割线" width="210">
+                <template #default="scope">
+                  <div style="font-size: 12px;">
+                    <div>
+                      <span class="fib-val"
+                        :class="{'flash-l2': hasAlert(scope.row.fullCode,'L2_THRESH') && !hasAlert(scope.row.fullCode,'L3_THRESH')}">L1
+                        {{scope.row.f382}}</span>
+                      &nbsp;
+                      <span class="fib-val"
+                        :class="{'flash-l2': hasAlert(scope.row.fullCode,'L2_THRESH') && !hasAlert(scope.row.fullCode,'L3_THRESH')}">L2
+                        {{scope.row.f618}}</span>
+                    </div>
+                    <div class="fib-val" style="margin-top:2px;"
+                      :class="{'flash-l3': hasAlert(scope.row.fullCode,'L3_THRESH')}">L3 {{scope.row.f786}}</div>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="8848线" width="150">
+                <template #default="scope">
+                  <div style="font-size: 12px;">
+                    <div class="fib-val" :class="{'flash-top': hasAlert(scope.row.fullCode,'TOP_BOUND')}">上
+                      {{scope.row.topLine}}</div>
+                    <div class="fib-val" style="margin-top:2px;"
+                      :class="{'flash-bot': hasAlert(scope.row.fullCode,'BOT_BOUND')}">下 {{scope.row.bottomLine}}</div>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="操作" width="140" fixed="right" align="center">
+                <template #default="scope">
+                  <el-button size="small" link type="success" @click="openAddPos(scope.row)">加仓</el-button>
+                  <el-button size="small" link type="primary" @click="openCfg(scope.row)">参数</el-button>
+                  <el-button size="small" link type="danger" @click="removeItem(scope.$index)">移除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="红利股息监控" name="dividend" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+          <div class="toolbar">
+            <el-input v-model="dividendInputCodes" type="textarea" :rows="1" placeholder="输入股票编号（支持批量，空格/逗号分隔）"></el-input>
+            <div class="toolbar-buttons">
+              <div class="button-row">
+                <el-button type="primary" @click="addDividendCodes" :loading="dividendLoading">查询并追加</el-button>
+                <el-button type="primary" @click="refreshDividendData" :loading="dividendLoading">刷新数据</el-button>
+                <el-button :type="autoDividendRefresh ? 'success' : 'info'" @click="toggleAutoDividendRefresh">
+                  {{autoDividendRefresh ? '自动刷新 ' + dividendCountdown + 's' : '60s自动刷新'}}
+                </el-button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <el-table :data="dividendTableData" height="50%"  border style="width: 100%" v-loading="dividendLoading">
+              <el-table-column prop="name" label="股票名称" min-width="120">
+                <template #default="scope">
+                  <span
+                    :class="['market-tag', 'tag-' + getMarket(scope.row.fullCode)]">{{getMarketLabel(scope.row.fullCode)}}</span>
+                  {{scope.row.name}}
+                </template>
+              </el-table-column>
+              <el-table-column label="当前价格" width="120">
+                <template #default="scope">
+                  <div>
+                    <span class="price-now" :class="getDividendChgClass(scope.row)">{{scope.row.price || '-'}}</span>
+                  </div>
+                  <div class="sub-line" :class="getDividendChgClass(scope.row)">
+                    {{formatDividendChg(scope.row)}}
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="每股股息" width="130">
+                <template #default="scope">
+                  <el-input-number v-model="scope.row.dividendPerShare" :precision="4" :min="0" :controls="false"
+                    size="small" style="width: 100px;" @change="onUpdateDividendPerShare(scope.row)"></el-input-number>
+                </template>
+              </el-table-column>
+              <el-table-column label="股息率" width="100">
+                <template #default="scope">
+                  <span :class="['dividend-rate', getDividendClass(scope.row.dividendRate)]">
+                    {{scope.row.dividendRate !== null && scope.row.dividendRate !== undefined ?
+                    scope.row.dividendRate.toFixed(2) + '%' : '-'}}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="4%价" width="90">
+                <template #default="scope">
+                  <span :class="{'flash-dividend-rate': isDividendRateReached(scope.row, 4)}"
+                    style="color:#8e44ad">{{scope.row.priceAt400 || '-'}}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="4.5%价" width="90">
+                <template #default="scope">
+                  <span :class="{'flash-dividend-rate': isDividendRateReached(scope.row, 4.5)}"
+                    style="color:#409eff">{{scope.row.priceAt450 || '-'}}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="5%价" width="90">
+                <template #default="scope">
+                  <span :class="{'flash-dividend-rate': isDividendRateReached(scope.row, 5)}"
+                    style="color:#f56c6c">{{scope.row.priceAt500 || '-'}}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="5.5%价" width="90">
+                <template #default="scope">
+                  <span :class="{'flash-dividend-rate': isDividendRateReached(scope.row, 5.5)}"
+                    style="color:#e6a23c">{{scope.row.priceAt550 || '-'}}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="6%价" width="90">
+                <template #default="scope">
+                  <span :class="{'flash-dividend-rate': isDividendRateReached(scope.row, 6)}"
+                    style="color:#67c23a">{{scope.row.priceAt600 || '-'}}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="80" align="center">
+                <template #default="scope">
+                  <el-button size="small" link type="danger" @click="removeDividendItem(scope.$index)">移除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+
+      <el-dialog v-model="cfgVisible" title="参数设置" width="520" :close-on-click-modal="true">
+        <el-form v-if="cfgRow" label-width="110px" label-position="right" size="default">
+          <el-form-item label="阶段峰值">
+            <el-input-number v-model="cfgRow.high" :precision="3" :controls="false" style="width: 260px;"
+              @change="cfgChanged = true"></el-input-number>
+          </el-form-item>
+          <el-form-item label="阶段谷值">
+            <el-input-number v-model="cfgRow.low" :precision="3" :controls="false" style="width: 260px;"
+              @change="cfgChanged = true"></el-input-number>
+          </el-form-item>
+          <el-form-item label="波动系数(20)">
+            <el-input-number v-model="cfgRow.adr20" :precision="3" :controls="false" style="width: 260px;"
+              @change="cfgChanged = true"></el-input-number>
+          </el-form-item>
+          <el-form-item label="入标日期">
+            <el-date-picker v-model="cfgRow.buyDate" type="date" value-format="YYYY-MM-DD"
+              style="width: 260px;"></el-date-picker>
+          </el-form-item>
+          <el-form-item label="入标成本">
+            <el-input-number v-model="cfgRow.buyPrice" :precision="3" :controls="false" style="width: 260px;"
+              @change="cfgChanged = true"></el-input-number>
+          </el-form-item>
+          <el-form-item label="权重（数量）">
+            <el-input-number v-model="cfgRow.quantity" :precision="0" :controls="false" style="width: 260px;"
+              @change="cfgChanged = true"></el-input-number>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="cfgVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveCfg">保存应用</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="addPosVisible" title="📈 加仓设置" width="480" :close-on-click-modal="true">
+        <el-form label-width="100px" label-position="right" size="default">
+          <el-form-item label="加仓成本">
+            <el-input-number v-model="addPosForm.buyPrice" :precision="3" :controls="false" style="width: 240px;"></el-input-number>
+          </el-form-item>
+          <el-form-item label="ADR20">
+            <el-input-number v-model="addPosForm.adr20" :precision="3" :controls="false" style="width: 240px;"></el-input-number>
+          </el-form-item>
+          <el-form-item label="加仓数量">
+            <el-input-number v-model="addPosForm.quantity" :precision="0" :controls="false" style="width: 240px;"></el-input-number>
+          </el-form-item>
+          <el-form-item label="加仓日期">
+            <el-date-picker v-model="addPosForm.buyDate" type="date" value-format="YYYY-MM-DD" style="width: 240px;"></el-date-picker>
+          </el-form-item>
+        </el-form>
+        <p style="color: #909399; font-size: 12px; margin-top: 10px;">
+          提示：加仓将独立计算止盈止损，点击行左侧展开按钮可查看各仓位详情。
+        </p>
+        <template #footer>
+          <el-button @click="addPosVisible = false">取消</el-button>
+          <el-button type="success" @click="saveAddPos">确认加仓</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="exportVisible" title="📤 导出数据（一键迁移）" width="720">
+        <p style="margin:0 0 8px 0;color:#606266;font-size:13px;">
+          点击下方「复制全部到剪贴板」，然后用 Live Server 打开同一页面后点【📥 导入数据】粘贴即可。或者直接下载 JSON 文件保存到本地。
+        </p>
+        <el-input v-model="exportJsonText" type="textarea" :rows="14" readonly
+          style="width:100%;font-family:'Monaco','Consolas',monospace;font-size:12px;"
+          placeholder="请先点"生成JSON""></el-input>
+        <template #footer>
+          <el-button @click="exportVisible = false">关闭</el-button>
+          <el-button type="primary" @click="copyExportToClipboard">复制全部到剪贴板</el-button>
+          <el-button type="success" @click="downloadExportJson">下载 JSON 文件</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="importVisible" title="📥 导入数据" width="720">
+        <p style="margin:0 0 8px 0;color:#606266;font-size:13px;">
+          粘贴之前导出的 JSON 文本到下面的文本框，选择合并方式后点【确认导入】。
+        </p>
+        <el-radio-group v-model="importMode" style="margin-bottom:10px;">
+          <el-radio value="merge">合并（按编号覆盖同编号覆盖、不同编号保留两边相加）</el-radio>
+          <el-radio value="replace">替换（清空现有，用导入的覆盖整个列表）</el-radio>
+        </el-radio-group>
+        <el-input v-model="importJsonText" type="textarea" :rows="14"
+          style="width:100%;font-family:'Monaco','Consolas',monospace;font-size:12px;"
+          placeholder="请粘贴之前导出的 JSON 字符串..."></el-input>
+        <template #footer>
+          <el-button @click="importVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmImport">确认导入</el-button>
+        </template>
+      </el-dialog>
+    </div>
+  </div>
+
+  <script type="module">
+    import { mountApp } from './js/app.js';
+    mountApp();
+  </script>
+</body>
+
+</html>
