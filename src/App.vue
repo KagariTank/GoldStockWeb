@@ -171,6 +171,33 @@ const checkAlertsForRow = (row, skipNotify = false) => {
   } else {
     delete alertFlags.value[mk('L2_THRESH')]
   }
+
+  // 检查加仓的止盈止损
+  if (row.addPositions && row.addPositions.length > 0) {
+    row.addPositions.forEach((pos, idx) => {
+      const posMk = (type) => alertTypeKey(code, `ADD_${idx}_${type}`)
+      
+      const posSL = parseFloat(pos.stopLoss)
+      if (posSL > 0 && now <= posSL) {
+        if (!alertFlags.value[posMk('STOP_LOSS')]) {
+          alertFlags.value[posMk('STOP_LOSS')] = now
+          if (!skipNotify) fireNotify('⚠️ 加仓破位', `${name} 加仓${idx + 1} 已跌破止损 ${posSL.toFixed(3)}（当前 ${now}）`, 3, isFileProtocol.value, selectedVoice)
+        }
+      } else {
+        delete alertFlags.value[posMk('STOP_LOSS')]
+      }
+
+      const posTP = parseFloat(pos.takeProfit)
+      if (posTP > 0 && now >= posTP) {
+        if (!alertFlags.value[posMk('TAKE_PROFIT')]) {
+          alertFlags.value[posMk('TAKE_PROFIT')] = now
+          if (!skipNotify) fireNotify('✅ 加仓达标', `${name} 加仓${idx + 1} 已达止盈 ${posTP.toFixed(3)}（当前 ${now}）`, 2, isFileProtocol.value, selectedVoice)
+        }
+      } else {
+        delete alertFlags.value[posMk('TAKE_PROFIT')]
+      }
+    })
+  }
 }
 
 const checkAllAlerts = (skipNotify = false) => {
@@ -1171,8 +1198,8 @@ const getRowClass = (row) => {
                             <span>成本: <strong class="font-mono">{{ pos.buyPrice || '-' }}</strong></span>
                             <span>ADR20: <strong class="font-mono">{{ pos.adr20 || '-' }}</strong></span>
                             <span>数量: <strong class="font-mono">{{ pos.quantity || '-' }}</strong></span>
-                            <span>止盈: <strong class="font-mono text-blue-600">{{ pos.takeProfit || '-' }}</strong></span>
-                            <span>止损: <strong class="font-mono text-blue-600">{{ pos.stopLoss || '-' }}</strong></span>
+                            <span>止盈: <strong class="font-mono" :class="{ 'animate-pulse text-green-600': hasAlert(row.fullCode, `ADD_${idx}_TAKE_PROFIT`) }">{{ pos.takeProfit || '-' }}</strong></span>
+                            <span>止损: <strong class="font-mono" :class="{ 'animate-pulse text-red-600': hasAlert(row.fullCode, `ADD_${idx}_STOP_LOSS`) }">{{ pos.stopLoss || '-' }}</strong></span>
                             <span>盈亏: <strong class="font-mono" :class="getPnlClass(pos.pnlAmount)">{{ pos.pnlAmount || '-' }} ({{ pos.pnlPct || '-' }})</strong></span>
                             <span class="text-muted-foreground">{{ pos.toTPPct || '-' }}</span>
                             <span class="text-muted-foreground">{{ pos.toSLPct || '-' }}</span>
