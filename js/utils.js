@@ -88,7 +88,83 @@ export function ensureFields(row) {
   if (row.toSLPct === undefined) row.toSLPct = '';
   if (row._toTPNum === undefined) row._toTPNum = 0;
   if (row._toSLNum === undefined) row._toSLNum = 0;
+  // 加仓仓位数组
+  if (!row.addPositions) row.addPositions = [];
   return row;
+}
+
+// 计算单个仓位的止盈止损和盈亏（用于底仓和加仓）
+export function calculatePosition(position, now) {
+  const buy = parseFloat(position.buyPrice);
+  const adr = parseFloat(position.adr20);
+  const qty = parseInt(position.quantity) || 0;
+  
+  // 计算止盈止损
+  if (buy > 0 && adr > 0) {
+    const maxSince = Math.max(parseFloat(position.maxSinceBuy) || 0, now, buy);
+    position.maxSinceBuy = parseFloat(maxSince.toFixed(3));
+    const initialTP = buy + 2 * adr;
+    if (maxSince >= initialTP) {
+      const trailingTP = maxSince - 1 * adr;
+      position.takeProfit = Math.max(initialTP, trailingTP).toFixed(3);
+    } else {
+      position.takeProfit = initialTP.toFixed(3);
+    }
+    let slVal = buy - 2 * adr;
+    if (maxSince >= buy + 1.5 * adr) {
+      slVal = Math.max(slVal, buy);
+    }
+    position.stopLoss = slVal.toFixed(3);
+  } else {
+    position.takeProfit = '';
+    position.stopLoss = '';
+  }
+
+  // 计算盈亏
+  if (buy > 0 && now > 0) {
+    const pnlPerShare = now - buy;
+    const pnlPerShareAmt = qty > 0 ? pnlPerShare * qty : pnlPerShare;
+    const pnlPerPct = (pnlPerShare / buy) * 100;
+    const signPnl = pnlPerShare > 0 ? '+' : '';
+    if (qty > 0) {
+      position.pnlAmount = `${signPnl}${pnlPerShareAmt.toFixed(2)}`;
+    } else {
+      position.pnlAmount = `${signPnl}${pnlPerShareAmt.toFixed(3)}`;
+    }
+    position.pnlPct = `${signPnl}${pnlPerPct.toFixed(2)}%`;
+  } else {
+    position.pnlAmount = '';
+    position.pnlPct = '';
+  }
+
+  // 计算距离止盈止损
+  if (buy > 0 && adr > 0) {
+    const tp = parseFloat(position.takeProfit);
+    const sl = parseFloat(position.stopLoss);
+    if (now > 0 && tp > 0) {
+      const toTP = ((tp - now) / now) * 100;
+      position._toTPNum = toTP;
+      const tSign = toTP > 0 ? '+' : '';
+      position.toTPPct = `距止盈 ${tSign}${toTP.toFixed(2)}%`;
+    } else {
+      position.toTPPct = '';
+      position._toTPNum = 0;
+    }
+    if (now > 0 && sl > 0) {
+      const toSL = ((sl - now) / now) * 100;
+      position._toSLNum = toSL;
+      const sSign = toSL > 0 ? '+' : '';
+      position.toSLPct = `距止损 ${sSign}${toSL.toFixed(2)}%`;
+    } else {
+      position.toSLPct = '';
+      position._toSLNum = 0;
+    }
+  } else {
+    position.toTPPct = '';
+    position.toSLPct = '';
+    position._toTPNum = 0;
+    position._toSLNum = 0;
+  }
 }
 
 // 表格行样式类名
@@ -115,73 +191,16 @@ export function calculateRow(row, saveCallback) {
     row.topLine = (row.avg / K).toFixed(3);
     row.bottomLine = (row.avg * K).toFixed(3);
   }
-  const buy = parseFloat(row.buyPrice);
-  const adr = parseFloat(row.adr20);
+  
   const now = parseFloat(row.now) || 0;
-  const qty = parseInt(row.quantity) || 0;
-
-  if (buy > 0 && adr > 0) {
-    const maxSince = Math.max(parseFloat(row.maxSinceBuy) || 0, now, buy);
-    row.maxSinceBuy = parseFloat(maxSince.toFixed(3));
-    const initialTP = buy + 2 * adr;
-    if (maxSince >= initialTP) {
-      const trailingTP = maxSince - 1 * adr;
-      row.takeProfit = Math.max(initialTP, trailingTP).toFixed(3);
-    } else {
-      row.takeProfit = initialTP.toFixed(3);
-    }
-    let slVal = buy - 2 * adr;
-    if (maxSince >= buy + 1.5 * adr) {
-      slVal = Math.max(slVal, buy);
-    }
-    row.stopLoss = slVal.toFixed(3);
-  } else {
-    row.takeProfit = '';
-    row.stopLoss = '';
+  
+  // 计算底仓（使用 calculatePosition）
+  calculatePosition(row, now);
+  
+  // 计算所有加仓仓位
+  if (row.addPositions && row.addPositions.length > 0) {
+    row.addPositions.forEach(pos => calculatePosition(pos, now));
   }
-
-  if (buy > 0 && now > 0) {
-    const pnlPerShare = now - buy;
-    const pnlPerShareAmt = qty > 0 ? pnlPerShare * qty : pnlPerShare;
-    const pnlPerPct = (pnlPerShare / buy) * 100;
-    const signPnl = pnlPerShare > 0 ? '+' : '';
-    if (qty > 0) {
-      row.pnlAmount = `${signPnl}${pnlPerShareAmt.toFixed(2)}`;
-    } else {
-      row.pnlAmount = `${signPnl}${pnlPerShareAmt.toFixed(3)}`;
-    }
-    row.pnlPct = `${signPnl}${pnlPerPct.toFixed(2)}%`;
-  } else {
-    row.pnlAmount = '';
-    row.pnlPct = '';
-  }
-
-  if (buy > 0 && adr > 0) {
-    const tp = parseFloat(row.takeProfit);
-    const sl = parseFloat(row.stopLoss);
-    if (now > 0 && tp > 0) {
-      const toTP = ((tp - now) / now) * 100;
-      row._toTPNum = toTP;
-      const tSign = toTP > 0 ? '+' : '';
-      row.toTPPct = `距止盈 ${tSign}${toTP.toFixed(2)}%`;
-    } else {
-      row.toTPPct = '';
-      row._toTPNum = 0;
-    }
-    if (now > 0 && sl > 0) {
-      const toSL = ((sl - now) / now) * 100;
-      row._toSLNum = toSL;
-      const sSign = toSL > 0 ? '+' : '';
-      row.toSLPct = `距止损 ${sSign}${toSL.toFixed(2)}%`;
-    } else {
-      row.toSLPct = '';
-      row._toSLNum = 0;
-    }
-  } else {
-    row.toTPPct = '';
-    row.toSLPct = '';
-    row._toTPNum = 0;
-    row._toSLNum = 0;
-  }
+  
   if (saveCallback) saveCallback();
 }

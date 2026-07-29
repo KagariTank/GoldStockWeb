@@ -1,48 +1,21 @@
 {
   "version": 8,
-  "exportedAt": "2026-07-28T06:55:29.660Z",
+  "exportedAt": "2026-07-29T13:12:00.920Z",
   "monitor": {
     "items": [
       {
-        "name": "中证2000ETF华泰柏瑞",
-        "fullCode": "sh563300",
-        "now": 1.281,
-        "prevClose": 1.31,
-        "high": null,
-        "low": null,
-        "avg": 1.298,
-        "f382": "0.000",
-        "f618": "0.000",
-        "f786": "0.000",
-        "topLine": "1.313",
-        "bottomLine": "1.283",
-        "buyPrice": 0,
-        "buyDate": "",
-        "adr20": 0,
-        "quantity": 0,
-        "maxSinceBuy": 1.299,
-        "takeProfit": "",
-        "stopLoss": "",
-        "pnlAmount": "",
-        "pnlPct": "",
-        "toTPPct": "",
-        "toSLPct": "",
-        "_toTPNum": 0,
-        "_toSLNum": 0
-      },
-      {
         "name": "亨通光电",
         "fullCode": "sh600487",
-        "now": 50.07,
-        "prevClose": 55.55,
+        "now": 49.75,
+        "prevClose": 50.01,
         "high": null,
         "low": null,
-        "avg": 51.991,
+        "avg": 49.053,
         "f382": "0.000",
         "f618": "0.000",
         "f786": "0.000",
-        "topLine": "52.597",
-        "bottomLine": "51.392",
+        "topLine": "49.625",
+        "bottomLine": "48.488",
         "buyPrice": 0,
         "buyDate": "",
         "adr20": 0,
@@ -55,26 +28,27 @@
         "toTPPct": "",
         "toSLPct": "",
         "_toTPNum": 0,
-        "_toSLNum": 0
+        "_toSLNum": 0,
+        "addPositions": []
       },
       {
         "name": "工业富联",
         "fullCode": "sh601138",
-        "now": 58.01,
-        "prevClose": 61.55,
+        "now": 57.75,
+        "prevClose": 58.08,
         "high": null,
         "low": null,
-        "avg": 59.166,
+        "avg": 57.168,
         "f382": "0.000",
         "f618": "0.000",
         "f786": "0.000",
-        "topLine": "59.856",
-        "bottomLine": "58.484",
+        "topLine": "57.834",
+        "bottomLine": "56.509",
         "buyPrice": 0,
         "buyDate": "",
         "adr20": 0,
         "quantity": 0,
-        "maxSinceBuy": 61.6,
+        "maxSinceBuy": 61.55,
         "takeProfit": "",
         "stopLoss": "",
         "pnlAmount": "",
@@ -82,22 +56,51 @@
         "toTPPct": "",
         "toSLPct": "",
         "_toTPNum": 0,
-        "_toSLNum": 0
+        "_toSLNum": 0,
+        "addPositions": []
+      },
+      {
+        "name": "东方电缆",
+        "fullCode": "sh603606",
+        "now": 40.97,
+        "prevClose": 39.2,
+        "high": 43.75,
+        "low": 37.59,
+        "avg": 40.477,
+        "f382": "41.397",
+        "f618": "39.943",
+        "f786": "38.908",
+        "topLine": "40.949",
+        "bottomLine": "40.011",
+        "buyPrice": null,
+        "buyDate": "",
+        "adr20": null,
+        "quantity": 0,
+        "maxSinceBuy": 40.97,
+        "takeProfit": "",
+        "stopLoss": "",
+        "pnlAmount": "",
+        "pnlPct": "",
+        "toTPPct": "",
+        "toSLPct": "",
+        "_toTPNum": 0,
+        "_toSLNum": 0,
+        "addPositions": []
       },
       {
         "name": "中国巨石",
         "fullCode": "sh600176",
-        "now": 37.44,
-        "prevClose": 41.07,
+        "now": 38.39,
+        "prevClose": 37.59,
         "high": null,
         "low": null,
-        "avg": 38.605,
+        "avg": 37.605,
         "f382": "0.000",
         "f618": "0.000",
         "f786": "0.000",
-        "topLine": "39.055",
-        "bottomLine": "38.160",
-        "buyPrice": 0,
+        "topLine": "38.043",
+        "bottomLine": "37.172",
+        "buyPrice": null,
         "buyDate": "",
         "adr20": null,
         "quantity": 0,
@@ -109,21 +112,22 @@
         "toTPPct": "",
         "toSLPct": "",
         "_toTPNum": 0,
-        "_toSLNum": 0
+        "_toSLNum": 0,
+        "addPositions": []
       },
       {
         "name": "中兴通讯",
         "fullCode": "sz000063",
-        "now": 34.07,
-        "prevClose": 35.25,
+        "now": 34.08,
+        "prevClose": 33.62,
         "high": 41,
         "low": 33.85,
-        "avg": 34.309,
+        "avg": 33.802,
         "f382": "38.269",
         "f618": "36.581",
         "f786": "35.380",
-        "topLine": "34.709",
-        "bottomLine": "33.914",
+        "topLine": "34.196",
+        "bottomLine": "33.413",
         "buyPrice": 0,
         "buyDate": "",
         "adr20": 2.29,
@@ -136,34 +140,36 @@
         "toTPPct": "",
         "toSLPct": "",
         "_toTPNum": 0,
-        "_toSLNum": 0
+        "_toSLNum": 0,
+        "addPositions": []
       },
       {
         "name": "兆易创新",
         "fullCode": "sh603986",
-        "now": 390.63,
-        "prevClose": 434.03,
+        "now": 364.03,
+        "prevClose": 390.63,
         "high": null,
         "low": null,
-        "avg": 396.624,
+        "avg": 358.882,
         "f382": "0.000",
         "f618": "0.000",
         "f786": "0.000",
-        "topLine": "401.246",
-        "bottomLine": "392.055",
+        "topLine": "363.065",
+        "bottomLine": "354.748",
         "buyPrice": 528.88,
         "buyDate": "",
         "adr20": 37.68,
-        "quantity": 0,
+        "quantity": 100,
         "maxSinceBuy": 528.88,
         "takeProfit": "604.240",
         "stopLoss": "453.520",
-        "pnlAmount": "-138.250",
-        "pnlPct": "-26.14%",
-        "toTPPct": "距上限 +54.68%",
-        "toSLPct": "距下限 +16.10%",
-        "_toTPNum": 54.68346005171134,
-        "_toSLNum": 16.09963392468576
+        "pnlAmount": "-16485.00",
+        "pnlPct": "-31.17%",
+        "toTPPct": "距止盈 +65.99%",
+        "toSLPct": "距止损 +24.58%",
+        "_toTPNum": 65.98631980880698,
+        "_toSLNum": 24.58313875230064,
+        "addPositions": []
       }
     ]
   },
@@ -172,284 +178,283 @@
       {
         "name": "中国海油",
         "fullCode": "sh600938",
-        "price": 31.32,
+        "price": 31.55,
         "dividendPerShare": 1.1449,
-        "prevClose": 31.55
+        "prevClose": 31.91
       },
       {
         "name": "中国神华",
         "fullCode": "sh601088",
-        "price": 44.93,
+        "price": 44.83,
         "dividendPerShare": 2.01,
-        "prevClose": 44.83
+        "prevClose": 45.7
       },
       {
         "name": "中国石油",
         "fullCode": "sh601857",
-        "price": 10.99,
+        "price": 10.9,
         "dividendPerShare": 0.47,
-        "prevClose": 10.9
+        "prevClose": 11.03
       },
       {
         "name": "交通银行",
         "fullCode": "sh601328",
-        "price": 7.09,
+        "price": 7.01,
         "dividendPerShare": 0.3247,
-        "prevClose": 7.01
+        "prevClose": 7.04
       },
       {
         "name": "中远海控",
         "fullCode": "sh601919",
-        "price": 15.39,
+        "price": 15.31,
         "dividendPerShare": 1,
-        "prevClose": 15.31
+        "prevClose": 15.32
       },
       {
         "name": "中国移动",
         "fullCode": "sh600941",
-        "price": 96.54,
+        "price": 94.39,
         "dividendPerShare": 4.9037,
-        "prevClose": 94.39
+        "prevClose": 94.69
       },
       {
         "name": "中远海特",
         "fullCode": "sh600428",
-        "price": 11.16,
+        "price": 10.8,
         "dividendPerShare": 0.325,
-        "prevClose": 10.8
+        "prevClose": 10.69
       },
       {
         "name": "长江电力",
         "fullCode": "sh600900",
-        "price": 28.94,
+        "price": 28.35,
         "dividendPerShare": 1,
-        "prevClose": 28.35
+        "prevClose": 28.9
       },
       {
         "name": "梅花生物",
         "fullCode": "sh600873",
-        "price": 8.16,
+        "price": 8.36,
         "dividendPerShare": 0.4285,
-        "prevClose": 8.36
+        "prevClose": 8.25
       },
       {
         "name": "招商银行",
         "fullCode": "sh600036",
-        "price": 39.44,
+        "price": 39,
         "dividendPerShare": 2.016,
-        "prevClose": 39
+        "prevClose": 39.2
       },
       {
         "name": "工商银行",
         "fullCode": "sh601398",
-        "price": 7.92,
+        "price": 7.73,
         "dividendPerShare": 0.313,
-        "prevClose": 7.73
+        "prevClose": 7.75
       },
       {
         "name": "农业银行",
         "fullCode": "sh601288",
-        "price": 6.93,
+        "price": 6.72,
         "dividendPerShare": 0.2495,
-        "prevClose": 6.72
+        "prevClose": 6.66
       },
       {
         "name": "建设银行",
         "fullCode": "sh601939",
-        "price": 10.6,
+        "price": 10.36,
         "dividendPerShare": 0.3887,
-        "prevClose": 10.36
+        "prevClose": 10.26
       },
       {
         "name": "中国银行",
         "fullCode": "sh601988",
-        "price": 6.08,
+        "price": 6,
         "dividendPerShare": 0.2263,
-        "prevClose": 6
+        "prevClose": 6.01
       }
     ],
     "data": [
       {
         "name": "中远海控",
         "fullCode": "sh601919",
-        "price": 15.39,
+        "price": 15.31,
         "dividendPerShare": 1,
-        "dividendRate": 6.5,
+        "dividendRate": 6.53,
         "priceAt400": 25,
         "priceAt450": 22.222,
         "priceAt500": 20,
         "priceAt550": 18.182,
         "priceAt600": 16.667,
-        "prevClose": 15.31
-      },
-      {
-        "name": "梅花生物",
-        "fullCode": "sh600873",
-        "price": 8.16,
-        "dividendPerShare": 0.4285,
-        "dividendRate": 5.25,
-        "priceAt450": 9.522,
-        "priceAt500": 8.57,
-        "priceAt550": 7.791,
-        "priceAt600": 7.142,
-        "priceAt400": 10.713,
-        "prevClose": 8.36
-      },
-      {
-        "name": "招商银行",
-        "fullCode": "sh600036",
-        "price": 39.44,
-        "dividendPerShare": 2.016,
-        "dividendRate": 5.11,
-        "priceAt450": 44.8,
-        "priceAt500": 40.32,
-        "priceAt550": 36.655,
-        "priceAt600": 33.6,
-        "priceAt400": 50.4,
-        "prevClose": 39
+        "prevClose": 15.32
       },
       {
         "name": "中国移动",
         "fullCode": "sh600941",
-        "price": 96.54,
+        "price": 94.39,
         "dividendPerShare": 4.9037,
-        "dividendRate": 5.08,
+        "dividendRate": 5.2,
         "priceAt400": 122.592,
         "priceAt450": 108.971,
         "priceAt500": 98.074,
         "priceAt550": 89.158,
         "priceAt600": 81.728,
-        "prevClose": 94.39
+        "prevClose": 94.69
+      },
+      {
+        "name": "招商银行",
+        "fullCode": "sh600036",
+        "price": 39,
+        "dividendPerShare": 2.016,
+        "dividendRate": 5.17,
+        "priceAt450": 44.8,
+        "priceAt500": 40.32,
+        "priceAt550": 36.655,
+        "priceAt600": 33.6,
+        "priceAt400": 50.4,
+        "prevClose": 39.2
+      },
+      {
+        "name": "梅花生物",
+        "fullCode": "sh600873",
+        "price": 8.36,
+        "dividendPerShare": 0.4285,
+        "dividendRate": 5.13,
+        "priceAt450": 9.522,
+        "priceAt500": 8.57,
+        "priceAt550": 7.791,
+        "priceAt600": 7.142,
+        "priceAt400": 10.713,
+        "prevClose": 8.25
       },
       {
         "name": "交通银行",
         "fullCode": "sh601328",
-        "price": 7.09,
+        "price": 7.01,
         "dividendPerShare": 0.3247,
-        "dividendRate": 4.58,
+        "dividendRate": 4.63,
         "priceAt400": 8.117,
         "priceAt450": 7.216,
         "priceAt500": 6.494,
         "priceAt550": 5.904,
         "priceAt600": 5.412,
-        "prevClose": 7.01
+        "prevClose": 7.04
       },
       {
         "name": "中国神华",
         "fullCode": "sh601088",
-        "price": 44.93,
+        "price": 44.83,
         "dividendPerShare": 2.01,
-        "dividendRate": 4.47,
+        "dividendRate": 4.48,
         "priceAt400": 50.25,
         "priceAt450": 44.667,
         "priceAt500": 40.2,
         "priceAt550": 36.545,
         "priceAt600": 33.5,
-        "prevClose": 44.83
+        "prevClose": 45.7
       },
       {
         "name": "中国石油",
         "fullCode": "sh601857",
-        "price": 10.99,
+        "price": 10.9,
         "dividendPerShare": 0.47,
-        "dividendRate": 4.28,
+        "dividendRate": 4.31,
         "priceAt400": 11.75,
         "priceAt450": 10.444,
         "priceAt500": 9.4,
         "priceAt550": 8.545,
         "priceAt600": 7.833,
-        "prevClose": 10.9
+        "prevClose": 11.03
       },
       {
         "name": "工商银行",
         "fullCode": "sh601398",
-        "price": 7.92,
+        "price": 7.73,
         "dividendPerShare": 0.313,
-        "dividendRate": 3.95,
+        "dividendRate": 4.05,
         "priceAt450": 6.956,
         "priceAt500": 6.26,
         "priceAt550": 5.691,
         "priceAt600": 5.217,
         "priceAt400": 7.825,
-        "prevClose": 7.73
+        "prevClose": 7.75
       },
       {
         "name": "中国银行",
         "fullCode": "sh601988",
-        "price": 6.08,
+        "price": 6,
         "dividendPerShare": 0.2263,
-        "dividendRate": 3.72,
+        "dividendRate": 3.77,
         "priceAt450": 5.029,
         "priceAt500": 4.526,
         "priceAt550": 4.115,
         "priceAt600": 3.772,
         "priceAt400": 5.657,
-        "prevClose": 6
+        "prevClose": 6.01
       },
       {
         "name": "建设银行",
         "fullCode": "sh601939",
-        "price": 10.6,
+        "price": 10.36,
         "dividendPerShare": 0.3887,
-        "dividendRate": 3.67,
+        "dividendRate": 3.75,
         "priceAt450": 8.638,
         "priceAt500": 7.774,
         "priceAt550": 7.067,
         "priceAt600": 6.478,
         "priceAt400": 9.717,
-        "prevClose": 10.36
-      },
-      {
-        "name": "中国海油",
-        "fullCode": "sh600938",
-        "price": 31.32,
-        "dividendPerShare": 1.1449,
-        "dividendRate": 3.66,
-        "priceAt400": 28.622,
-        "priceAt450": 25.442,
-        "priceAt500": 22.898,
-        "priceAt550": 20.816,
-        "priceAt600": 19.082,
-        "prevClose": 31.55
+        "prevClose": 10.26
       },
       {
         "name": "农业银行",
         "fullCode": "sh601288",
-        "price": 6.93,
+        "price": 6.72,
         "dividendPerShare": 0.2495,
-        "dividendRate": 3.6,
+        "dividendRate": 3.71,
         "priceAt450": 5.544,
         "priceAt500": 4.99,
         "priceAt550": 4.536,
         "priceAt600": 4.158,
         "priceAt400": 6.237,
-        "prevClose": 6.72
+        "prevClose": 6.66
+      },
+      {
+        "name": "中国海油",
+        "fullCode": "sh600938",
+        "price": 31.55,
+        "dividendPerShare": 1.1449,
+        "dividendRate": 3.63,
+        "priceAt400": 28.622,
+        "priceAt450": 25.442,
+        "priceAt500": 22.898,
+        "priceAt550": 20.816,
+        "priceAt600": 19.082
       },
       {
         "name": "长江电力",
         "fullCode": "sh600900",
-        "price": 28.94,
+        "price": 28.35,
         "dividendPerShare": 1,
-        "dividendRate": 3.46,
+        "dividendRate": 3.53,
         "priceAt450": 22.222,
         "priceAt500": 20,
         "priceAt550": 18.182,
         "priceAt600": 16.667,
         "priceAt400": 25,
-        "prevClose": 28.35
+        "prevClose": 28.9
       },
       {
         "name": "中远海特",
         "fullCode": "sh600428",
-        "price": 11.16,
+        "price": 10.8,
         "dividendPerShare": 0.325,
-        "dividendRate": 2.91,
+        "dividendRate": 3.01,
         "priceAt400": 8.125,
         "priceAt450": 7.222,
         "priceAt500": 6.5,
         "priceAt550": 5.909,
         "priceAt600": 5.417,
-        "prevClose": 10.8
+        "prevClose": 10.69
       }
     ]
   }

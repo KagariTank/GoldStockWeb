@@ -1,6 +1,6 @@
 // 主应用模块 - 聚合所有功能模块
-import { formatCode, getMarket, getMarketLabel, getChgClass, formatChg, getPnlClass, ensureFields, tableRowClassName, calculateRow } from './utils.js';
-import { initVoices, initAudio, playBeep, fireNotify, speakAlert, testNotify, ensureNotifyPerm } from './notify.js';
+import { formatCode, getMarket, getMarketLabel, getChgClass, formatChg, getPnlClass, ensureFields, tableRowClassName, calculateRow, calculatePosition } from './utils.js';
+import { initVoices, initAudio, playBeep, fireNotify, speakAlert, testNotify, ensureNotifyPerm, clearAllNotifications } from './notify.js';
 import { getDividendColor, getDividendClass, getDividendEmoji, getThresholdCount, dividendAlertTypeKey, hasDividendAlert, checkDividendAlerts, isDividendRateReached, getDividendChgClass, formatDividendChg, calcDividendFields, onUpdateDividendPerShare } from './dividend.js';
 
 const { createApp, ref, onMounted, reactive } = Vue;
@@ -15,6 +15,16 @@ export function setupApp() {
   const cfgRow = ref(null);
   const cfgChanged = ref(false);
   const _cfgBackup = ref(null);
+
+  // 加仓弹窗相关
+  const addPosVisible = ref(false);
+  const addPosRow = ref(null);
+  const addPosForm = ref({
+    buyPrice: 0,
+    adr20: 0,
+    quantity: 0,
+    buyDate: ''
+  });
 
   const isFileProtocol = ref(false);
   try {
@@ -32,6 +42,7 @@ export function setupApp() {
   const _autoTimer = ref(null);
   const _countdownTimer = ref(null);
   const alertFlags = ref({});
+  let _alertInitialized = false; // 标记是否已完成初始化检查
   const selectedVoice = ref('');
   const chineseVoices = ref([]);
   const activeTab = ref('monitor');
@@ -83,7 +94,7 @@ export function setupApp() {
     return !!alertFlags.value[alertTypeKey(code, type)];
   };
 
-  const checkAlertsForRow = (row) => {
+  const checkAlertsForRow = (row, skipNotify = false) => {
     const code = row.fullCode;
     const now = parseFloat(row.now);
     if (!now || isNaN(now)) return;
@@ -94,7 +105,7 @@ export function setupApp() {
     if (sl > 0 && now <= sl) {
       if (!alertFlags.value[mk('STOP_LOSS')]) {
         alertFlags.value[mk('STOP_LOSS')] = now;
-        fireNotify('⚠️ 破位警告', `${name} 已跌破止损 ${sl.toFixed(3)}（当前 ${now}）`, 3, isFileProtocol.value, selectedVoice);
+        if (!skipNotify) fireNotify('⚠️ 破位警告', `${name} 已跌破止损 ${sl.toFixed(3)}（当前 ${now}）`, 3, isFileProtocol.value, selectedVoice);
       }
     } else {
       delete alertFlags.value[mk('STOP_LOSS')];
@@ -104,7 +115,7 @@ export function setupApp() {
     if (tp > 0 && now >= tp) {
       if (!alertFlags.value[mk('TAKE_PROFIT')]) {
         alertFlags.value[mk('TAKE_PROFIT')] = now;
-        fireNotify('✅ 达标提醒', `${name} 已达止盈 ${tp.toFixed(3)}（当前 ${now}）`, 2, isFileProtocol.value, selectedVoice);
+        if (!skipNotify) fireNotify('✅ 达标提醒', `${name} 已达止盈 ${tp.toFixed(3)}（当前 ${now}）`, 2, isFileProtocol.value, selectedVoice);
       }
     } else {
       delete alertFlags.value[mk('TAKE_PROFIT')];
@@ -114,7 +125,7 @@ export function setupApp() {
     if (topL > 0 && now >= topL) {
       if (!alertFlags.value[mk('TOP_BOUND')]) {
         alertFlags.value[mk('TOP_BOUND')] = now;
-        fireNotify('📈 触顶提醒', `${name} 上穿8848高位 ${topL.toFixed(3)}（当前 ${now}）`, 1, isFileProtocol.value, selectedVoice);
+        if (!skipNotify) fireNotify('📈 触顶提醒', `${name} 上穿8848高位 ${topL.toFixed(3)}（当前 ${now}）`, 1, isFileProtocol.value, selectedVoice);
       }
     } else {
       delete alertFlags.value[mk('TOP_BOUND')];
@@ -124,7 +135,7 @@ export function setupApp() {
     if (botL > 0 && now <= botL) {
       if (!alertFlags.value[mk('BOT_BOUND')]) {
         alertFlags.value[mk('BOT_BOUND')] = now;
-        fireNotify('📉 触底提醒', `${name} 下穿8848低位 ${botL.toFixed(3)}（当前 ${now}）`, 1, isFileProtocol.value, selectedVoice);
+        if (!skipNotify) fireNotify('📉 触底提醒', `${name} 下穿8848低位 ${botL.toFixed(3)}（当前 ${now}）`, 1, isFileProtocol.value, selectedVoice);
       }
     } else {
       delete alertFlags.value[mk('BOT_BOUND')];
@@ -134,7 +145,7 @@ export function setupApp() {
     if (l3 > 0 && now <= l3) {
       if (!alertFlags.value[mk('L3_THRESH')]) {
         alertFlags.value[mk('L3_THRESH')] = now;
-        fireNotify('🔻 L3 警戒', `${name} 跌破 L3 阈值 ${l3.toFixed(3)}（当前 ${now}）`, 2, isFileProtocol.value, selectedVoice);
+        if (!skipNotify) fireNotify('🔻 L3 警戒', `${name} 跌破 L3 阈值 ${l3.toFixed(3)}（当前 ${now}）`, 2, isFileProtocol.value, selectedVoice);
       }
     } else {
       delete alertFlags.value[mk('L3_THRESH')];
@@ -144,16 +155,16 @@ export function setupApp() {
     if (l2 > 0 && now <= l2 && !alertFlags.value[mk('L3_THRESH')]) {
       if (!alertFlags.value[mk('L2_THRESH')]) {
         alertFlags.value[mk('L2_THRESH')] = now;
-        fireNotify('🟠 L2 预警', `${name} 跌破 L2 阈值 ${l2.toFixed(3)}（当前 ${now}）`, 1, isFileProtocol.value, selectedVoice);
+        if (!skipNotify) fireNotify('🟠 L2 预警', `${name} 跌破 L2 阈值 ${l2.toFixed(3)}（当前 ${now}）`, 1, isFileProtocol.value, selectedVoice);
       }
     } else {
       delete alertFlags.value[mk('L2_THRESH')];
     }
   };
 
-  const checkAllAlerts = () => {
+  const checkAllAlerts = (skipNotify = false) => {
     tableData.value.forEach(row => ensureFields(row));
-    tableData.value.forEach(checkAlertsForRow);
+    tableData.value.forEach(row => checkAlertsForRow(row, skipNotify));
   };
 
   const saveToLocal = () => {
@@ -232,7 +243,9 @@ export function setupApp() {
       loading.value = false;
       saveToLocal();
       if (isAddition) inputCodes.value = "";
-      checkAllAlerts();
+      // 初始化时跳过通知，避免页面刷新重复触发
+      checkAllAlerts(!_alertInitialized);
+      _alertInitialized = true;
     };
   };
 
@@ -268,6 +281,61 @@ export function setupApp() {
     cfgVisible.value = false;
     cfgRow.value = null;
     _cfgBackup.value = null;
+  };
+
+  // 打开加仓弹窗
+  const openAddPos = (row) => {
+    if (!row) return;
+    ensureFields(row);
+    addPosRow.value = row;
+    addPosForm.value = {
+      buyPrice: parseFloat(row.now) || 0,
+      adr20: parseFloat(row.adr20) || 0,
+      quantity: 0,
+      buyDate: new Date().toISOString().slice(0, 10)
+    };
+    addPosVisible.value = true;
+  };
+
+  // 保存加仓
+  const saveAddPos = () => {
+    if (!addPosRow.value) return;
+    if (!addPosRow.value.addPositions) {
+      addPosRow.value.addPositions = [];
+    }
+    const newPos = {
+      id: 'pos_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      buyPrice: parseFloat(addPosForm.value.buyPrice) || 0,
+      adr20: parseFloat(addPosForm.value.adr20) || 0,
+      quantity: parseInt(addPosForm.value.quantity) || 0,
+      buyDate: addPosForm.value.buyDate || '',
+      maxSinceBuy: 0,
+      takeProfit: '',
+      stopLoss: '',
+      pnlAmount: '',
+      pnlPct: '',
+      toTPPct: '',
+      toSLPct: '',
+      _toTPNum: 0,
+      _toSLNum: 0
+    };
+    addPosRow.value.addPositions.push(newPos);
+    calculateRow(addPosRow.value, saveToLocal);
+    saveToLocal();
+    addPosVisible.value = false;
+    addPosRow.value = null;
+    ElementPlus.ElMessage.success('加仓成功！');
+  };
+
+  // 删除加仓仓位
+  const removeAddPos = (row, posId) => {
+    if (!row || !row.addPositions) return;
+    const idx = row.addPositions.findIndex(p => p.id === posId);
+    if (idx !== -1) {
+      row.addPositions.splice(idx, 1);
+      saveToLocal();
+      ElementPlus.ElMessage.success('已删除该加仓仓位');
+    }
   };
 
   const removeItem = (index) => {
@@ -746,9 +814,19 @@ export function setupApp() {
     }
   });
 
+  // 处理下拉菜单命令
+  const onDropdownCommand = (command) => {
+    if (command === 'test') {
+      testNotify(isFileProtocol.value, selectedVoice);
+    } else {
+      selectedVoice.value = command;
+    }
+  };
+
   return {
     inputCodes, tableData, loading,
     cfgVisible, cfgRow, cfgChanged,
+    addPosVisible, addPosRow, addPosForm,
     isFileProtocol,
     exportVisible, importVisible, exportJsonText, importJsonText, importMode,
     autoRefresh, autoCountdown,
@@ -760,7 +838,9 @@ export function setupApp() {
     tableRowClassName, getMarket, getMarketLabel,
     getChgClass, formatChg, getPnlClass,
     openCfg, saveCfg,
+    openAddPos, saveAddPos, removeAddPos,
     toggleAutoRefresh, testNotify: () => testNotify(isFileProtocol.value, selectedVoice),
+    clearAllNotifications,
     selectedVoice, chineseVoices,
     openExport, copyExportToClipboard, downloadExportJson,
     openImport, confirmImport,
@@ -770,7 +850,8 @@ export function setupApp() {
     getThresholdCount: (threshold) => getThresholdCount(dividendTableData.value, threshold),
     hasDividendAlert: (code) => hasDividendAlert(dividendAlertFlags.value, code),
     addDividendCodes, refreshDividendData, toggleAutoDividendRefresh, removeDividendItem,
-    onUpdateDividendPerShare: onUpdateDividendPerShareHandler
+    onUpdateDividendPerShare: onUpdateDividendPerShareHandler,
+    onDropdownCommand
   };
 }
 

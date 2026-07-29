@@ -4,6 +4,9 @@ let _audioCtx = null;
 let _voicesReady = false;
 let _speechQueue = [];
 let _speechBusy = false;
+let _activeNotifications = []; // 跟踪活动的通知
+let _silenceMode = false; // 静默模式开关
+let _silenceTimer = null; // 静默模式定时器
 
 // Mac需要主动触发voices加载，且需要用户交互
 export function initVoices(chineseVoices, selectedVoice) {
@@ -106,6 +109,12 @@ export function playBeep(level = 1) {
 }
 
 export function fireNotify(title, body, level, isFileProtocol, selectedVoice) {
+  // 静默模式下不发送任何通知
+  if (_silenceMode) {
+    console.log('静默模式，跳过通知:', title);
+    return;
+  }
+  
   let shown = false;
   try {
     if (!isFileProtocol && 'Notification' in window && Notification.permission === 'granted') {
@@ -115,6 +124,13 @@ export function fireNotify(title, body, level, isFileProtocol, selectedVoice) {
         requireInteraction: false
       });
 
+      // 跟踪通知
+      _activeNotifications.push(notification);
+      notification.onclose = () => {
+        const idx = _activeNotifications.indexOf(notification);
+        if (idx !== -1) _activeNotifications.splice(idx, 1);
+      };
+
       // Mac上通知可能需要事件处理
       notification.onclick = () => {
         notification.close();
@@ -123,6 +139,8 @@ export function fireNotify(title, body, level, isFileProtocol, selectedVoice) {
 
       notification.onerror = (e) => {
         console.warn('通知显示失败:', e);
+        const idx = _activeNotifications.indexOf(notification);
+        if (idx !== -1) _activeNotifications.splice(idx, 1);
       };
 
       shown = true;
@@ -380,4 +398,54 @@ export async function ensureNotifyPerm() {
     const r = await Notification.requestPermission();
     return r === 'granted';
   } catch (e) { return false; }
+}
+
+// 清除所有通知和语音
+export function clearAllNotifications() {
+  // 开启静默模式（30秒内不再弹出通知）
+  _silenceMode = true;
+  if (_silenceTimer) clearTimeout(_silenceTimer);
+  _silenceTimer = setTimeout(() => {
+    _silenceMode = false;
+    console.log('静默模式已结束');
+  }, 30000);
+  
+  // 清空语音队列
+  _speechQueue = [];
+  
+  // 取消正在播放的语音
+  if ('speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+      console.log('已取消语音播放');
+    } catch (e) {
+      console.error('取消语音失败:', e);
+    }
+  }
+  
+  // 重置播放状态
+  _speechBusy = false;
+  
+  // 关闭所有系统通知
+  if (_activeNotifications.length > 0) {
+    _activeNotifications.forEach(n => {
+      try {
+        n.close();
+      } catch (e) { }
+    });
+    _activeNotifications = [];
+    console.log('已关闭所有系统通知');
+  }
+  
+  // 清除 ElementPlus 消息
+  try {
+    ElementPlus.ElMessage.closeAll();
+  } catch (e) { }
+  
+  console.log('通知已清空，30秒内不再弹出新通知');
+  
+  // 显示提示
+  try {
+    ElementPlus.ElMessage.success('通知已清空，30秒内静默');
+  } catch (e) { }
 }

@@ -26,11 +26,23 @@
         <div class="header-actions">
           <el-button type="success" @click="openExport">导出</el-button>
           <el-button @click="openImport">导入</el-button>
-          <el-select v-model="selectedVoice" placeholder="语音选择" style="width: 160px; margin: 0 10px;" size="small">
-            <el-option v-for="voice in chineseVoices" :key="voice.name" :label="voice.name" :value="voice.name">
-            </el-option>
-          </el-select>
-          <el-button type="warning" @click="testNotify">测试提醒</el-button>
+          <el-dropdown @command="onDropdownCommand" style="margin: 0 10px;">
+            <el-button type="primary">
+              语音设置<i class="el-icon--right"><svg viewBox="0 0 1024 1024" style="width:1em;height:1em;"><path fill="currentColor" d="M764.8 505.216a32 32 0 0 1 0 44.608l-344.576 304.64A32 32 0 0 1 368 832.64V192a32 32 0 0 1 52.224-24.64l344.576 304.64z"></path></svg></i>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item v-for="voice in chineseVoices" :key="voice.name" :command="voice.name">
+                  <span v-if="selectedVoice === voice.name" style="color: #67c23a; font-weight: bold;">✓ {{voice.name}}</span>
+                  <span v-else>{{voice.name}}</span>
+                </el-dropdown-item>
+                <el-dropdown-item divided command="test">
+                  <span style="color: #e6a23c;">🔊 测试语音提醒</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-button type="danger" @click="clearAllNotifications">清除通知</el-button>
         </div>
       </div>
 
@@ -53,12 +65,51 @@
           <div class="table-wrapper">
             <el-table :data="tableData" height="100%" border style="width: 100%" v-loading="loading"
               :row-class-name="tableRowClassName">
+              <el-table-column type="expand">
+                <template #default="props">
+                  <div style="padding: 10px 20px; background: #fafafa;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #409eff;">
+                      📊 底仓 (ADR20: {{props.row.adr20 || '-'}})
+                    </div>
+                    <div style="display: flex; gap: 24px; font-size: 12px; padding: 8px; background: #fff; border-radius: 4px; margin-bottom: 8px;">
+                      <span>成本: <strong>{{props.row.buyPrice || '-'}}</strong></span>
+                      <span>数量: <strong>{{props.row.quantity || '-'}}</strong></span>
+                      <span>止盈: <strong class="fib-val" :class="{'flash-tp': hasAlert(props.row.fullCode,'TAKE_PROFIT')}">{{props.row.takeProfit || '-'}}</strong></span>
+                      <span>止损: <strong class="fib-val" :class="{'flash-sl': hasAlert(props.row.fullCode,'STOP_LOSS')}">{{props.row.stopLoss || '-'}}</strong></span>
+                      <span>盈亏: <strong :class="getPnlClass(props.row.pnlAmount)">{{props.row.pnlAmount || '-'}} ({{props.row.pnlPct || '-'}})</strong></span>
+                      <span>{{props.row.toTPPct || '-'}}</span>
+                      <span>{{props.row.toSLPct || '-'}}</span>
+                    </div>
+                    <div v-if="props.row.addPositions && props.row.addPositions.length > 0">
+                      <div style="font-weight: 600; margin: 12px 0 8px; color: #67c23a;">📈 加仓记录</div>
+                      <div v-for="(pos, idx) in props.row.addPositions" :key="pos.id"
+                        style="display: flex; gap: 24px; font-size: 12px; padding: 8px; background: #fff; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid #67c23a;">
+                        <span style="color: #67c23a; font-weight: bold;">加仓{{idx + 1}}</span>
+                        <span>成本: <strong>{{pos.buyPrice || '-'}}</strong></span>
+                        <span>ADR20: <strong>{{pos.adr20 || '-'}}</strong></span>
+                        <span>数量: <strong>{{pos.quantity || '-'}}</strong></span>
+                        <span>止盈: <strong class="fib-val">{{pos.takeProfit || '-'}}</strong></span>
+                        <span>止损: <strong class="fib-val">{{pos.stopLoss || '-'}}</strong></span>
+                        <span>盈亏: <strong :class="getPnlClass(pos.pnlAmount)">{{pos.pnlAmount || '-'}} ({{pos.pnlPct || '-'}})</strong></span>
+                        <span>{{pos.toTPPct || '-'}}</span>
+                        <span>{{pos.toSLPct || '-'}}</span>
+                        <el-button size="small" link type="danger" @click="removeAddPos(props.row, pos.id)">删除</el-button>
+                      </div>
+                    </div>
+                    <div v-else style="color: #909399; font-size: 12px; padding: 8px;">暂无加仓</div>
+                  </div>
+                </template>
+              </el-table-column>
               <el-table-column prop="name" label="项目 / 编号" min-width="140" fixed="left">
                 <template #default="scope">
                   <div style="font-weight: 600; color: #303133">
                     <span
                       :class="['market-tag', 'tag-' + getMarket(scope.row.fullCode)]">{{getMarketLabel(scope.row.fullCode)}}</span>
                     {{scope.row.name}}
+                    <span v-if="scope.row.addPositions && scope.row.addPositions.length > 0"
+                      style="background: #67c23a; color: #fff; font-size: 10px; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">
+                      +{{scope.row.addPositions.length}}
+                    </span>
                   </div>
                   <div style="font-size: 11px; color: #c0c4cc; margin-left: 32px;">{{scope.row.fullCode}}</div>
                 </template>
@@ -147,8 +198,9 @@
                 </template>
               </el-table-column>
 
-              <el-table-column label="操作" width="100" fixed="right" align="center">
+              <el-table-column label="操作" width="140" fixed="right" align="center">
                 <template #default="scope">
+                  <el-button size="small" link type="success" @click="openAddPos(scope.row)">加仓</el-button>
                   <el-button size="small" link type="primary" @click="openCfg(scope.row)">参数</el-button>
                   <el-button size="small" link type="danger" @click="removeItem(scope.$index)">移除</el-button>
                 </template>
@@ -274,6 +326,30 @@
         <template #footer>
           <el-button @click="cfgVisible = false">取消</el-button>
           <el-button type="primary" @click="saveCfg">保存应用</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="addPosVisible" title="📈 加仓设置" width="480" :close-on-click-modal="true">
+        <el-form label-width="100px" label-position="right" size="default">
+          <el-form-item label="加仓成本">
+            <el-input-number v-model="addPosForm.buyPrice" :precision="3" :controls="false" style="width: 240px;"></el-input-number>
+          </el-form-item>
+          <el-form-item label="ADR20">
+            <el-input-number v-model="addPosForm.adr20" :precision="3" :controls="false" style="width: 240px;"></el-input-number>
+          </el-form-item>
+          <el-form-item label="加仓数量">
+            <el-input-number v-model="addPosForm.quantity" :precision="0" :controls="false" style="width: 240px;"></el-input-number>
+          </el-form-item>
+          <el-form-item label="加仓日期">
+            <el-date-picker v-model="addPosForm.buyDate" type="date" value-format="YYYY-MM-DD" style="width: 240px;"></el-date-picker>
+          </el-form-item>
+        </el-form>
+        <p style="color: #909399; font-size: 12px; margin-top: 10px;">
+          提示：加仓将独立计算止盈止损，点击行左侧展开按钮可查看各仓位详情。
+        </p>
+        <template #footer>
+          <el-button @click="addPosVisible = false">取消</el-button>
+          <el-button type="success" @click="saveAddPos">确认加仓</el-button>
         </template>
       </el-dialog>
 
