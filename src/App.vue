@@ -4,6 +4,8 @@ import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Textarea from '@/components/ui/Textarea.vue'
 import Dialog from '@/components/ui/Dialog.vue'
+import Toast from '@/components/ui/Toast.vue'
+import { setToastInstance } from '@/js/toast.js'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import NumberInput from '@/components/ui/NumberInput.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
@@ -827,7 +829,15 @@ const ensureVoicesInit = () => {
 }
 
 // Lifecycle
+// Toast 实例引用
+const toastRef = ref(null)
+
 onMounted(() => {
+  // 初始化 Toast
+  if (toastRef.value) {
+    setToastInstance(toastRef.value)
+  }
+  
   // Init voices
   if ('speechSynthesis' in window) {
     const initOnUserAction = () => {
@@ -1435,6 +1445,9 @@ const getRowClass = (row) => {
           <Button @click="confirmImport">确认导入</Button>
         </template>
       </Dialog>
+      
+      <!-- Toast -->
+      <Toast ref="toastRef" />
     </div>
   </div>
 </template>

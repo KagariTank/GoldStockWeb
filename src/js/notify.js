@@ -1,5 +1,7 @@
 // 通知和语音模块
 
+import { showToast, toastSuccess, toastWarning, toastError, toastInfo, closeAllToasts } from './toast.js'
+
 let _audioCtx = null;
 let _voicesReady = false;
 let _speechQueue = [];
@@ -141,7 +143,7 @@ export function fireNotify(title, body, level, isFileProtocol, selectedVoice) {
     console.error('发送通知失败:', e);
     shown = false;
   }
-  try { ElementPlus.ElMessage({ type: 'warning', message: title + ' ' + body, duration: 4500, showClose: true, grouping: true }); } catch (e2) { }
+  showToast({ type: 'warning', message: title + ' ' + body, duration: 4500 });
   speakAlert(title, body, level, selectedVoice);
 }
 
@@ -357,17 +359,17 @@ export function testNotify(isFileProtocol, selectedVoice) {
     if (Notification.permission === 'granted') {
       fireNotify('🔔 指标提醒测试', '通知与语音通道正常。您将在触发阈值时收到提醒。', 2, isFileProtocol, selectedVoice);
     } else if (Notification.permission === 'denied') {
-      ElementPlus.ElMessage.error('通知权限已被拒绝。请点击浏览器地址栏左侧 🔒 图标手动开启通知权限后再试。下方仍提供语音与站内提醒。');
+      toastError('通知权限已被拒绝。请点击浏览器地址栏左侧 🔒 图标手动开启通知权限后再试。下方仍提供语音与站内提醒。');
       speakAlert('指标提醒测试', '站内提醒与语音通道正常。如需要系统通知请手动开启浏览器权限。', 2, selectedVoice);
     } else {
-      ElementPlus.ElMessage.info('即将请求系统通知权限。请在弹窗中点"允许"，请求后将立即发送一条测试通知。');
+      toastInfo('即将请求系统通知权限。请在弹窗中点"允许"，请求后将立即发送一条测试通知。');
       try {
         Notification.requestPermission().then(r => {
           setTimeout(() => {
             if (r === 'granted') {
               fireNotify('🔔 指标提醒测试', '通知权限已开启。语音与系统通知通道正常。', 2, isFileProtocol, selectedVoice);
             } else {
-              ElementPlus.ElMessage.warning('未开启系统通知，将自动降级为站内消息提醒 + 语音播报。');
+              toastWarning('未开启系统通知，将自动降级为站内消息提醒 + 语音播报。');
               speakAlert('指标提醒测试', '语音播报通道正常。系统通知未开启时将使用站内提醒。', 2, selectedVoice);
             }
           }, 150);
@@ -377,7 +379,7 @@ export function testNotify(isFileProtocol, selectedVoice) {
       }
     }
   } else {
-    ElementPlus.ElMessage.warning('当前浏览器不支持系统通知，将使用站内消息 + 语音提醒。');
+    toastWarning('当前浏览器不支持系统通知，将使用站内消息 + 语音提醒。');
     speakAlert('指标提醒测试', '语音播报通道正常。', 2, selectedVoice);
   }
 }
@@ -421,15 +423,11 @@ export function clearAllNotifications() {
     console.log('已关闭所有系统通知');
   }
   
-  // 清除 ElementPlus 消息
-  try {
-    ElementPlus.ElMessage.closeAll();
-  } catch (e) { }
+  // 清除 Toast 消息
+  closeAllToasts();
   
   console.log('通知已清空');
   
   // 显示提示
-  try {
-    ElementPlus.ElMessage.success('通知已清空');
-  } catch (e) { }
+  toastSuccess('通知已清空');
 }
