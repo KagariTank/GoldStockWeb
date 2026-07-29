@@ -1,0 +1,2256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <title>项目指标看板</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.14.3/dist/index.css">
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/element-plus@2.14.3/dist/index.full.min.js"></script>
+  <style>
+    body {
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 12px;
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      height: 100vh;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    #app {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .header-box {
+      flex-shrink: 0;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #ebeef5;
+      padding-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding-top: 4px;
+    }
+
+    .header-actions .el-button {
+      border-radius: 6px;
+      font-weight: 500;
+    }
+
+    .header-box h2 {
+      margin: 0;
+      color: #606266;
+      font-size: 20px;
+    }
+
+    .header-box p {
+      margin: 5px 0 0;
+      font-size: 13px;
+      color: #909399;
+    }
+
+    .toolbar {
+      flex-shrink: 0;
+      margin-bottom: 15px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 16px;
+      background: #f5f7fa;
+      border-radius: 8px;
+    }
+
+    .toolbar .el-input {
+      flex: 1;
+    }
+
+    .toolbar-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .toolbar-buttons .button-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .toolbar-buttons .el-button {
+      border-radius: 6px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .toolbar-buttons .el-button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    /* el-tabs 内容区域滚动支持 */
+    .el-tabs__content {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .el-tab-pane {
+      height: 100%;
+    }
+
+    .table-wrapper {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .table-wrapper .el-table {
+      height: 100% !important;
+    }
+
+    .el-table .warning-row td.el-table__cell {
+      background-color: #fdf6ec !important;
+      color: #b88230 !important;
+    }
+
+    .el-table .danger-row td.el-table__cell {
+      background-color: #faecd8 !important;
+      color: #a06a1d !important;
+    }
+
+    .el-table .stoploss-row td.el-table__cell {
+      background-color: #fdf6ec !important;
+      color: #b88230 !important;
+      font-weight: 600;
+    }
+
+    .el-table .takeprofit-row td.el-table__cell {
+      background-color: #ecf5ff !important;
+      color: #409eff !important;
+      font-weight: 600;
+    }
+
+    .up-text {
+      color: #409eff;
+      font-weight: 600;
+    }
+
+    .down-text {
+      color: #909399;
+    }
+
+    .alert-text {
+      color: #e6a23c;
+      font-weight: 600;
+    }
+
+    .fib-val {
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 13px;
+      font-weight: 500;
+      color: #606266;
+    }
+
+    .price-now {
+      font-weight: 700;
+      font-size: 15px;
+      color: #303133;
+    }
+
+    .market-tag {
+      font-size: 10px;
+      padding: 0 4px;
+      border-radius: 3px;
+      margin-right: 4px;
+    }
+
+    .tag-sh {
+      background: #ecf5ff;
+      color: #409eff;
+      border: 1px solid #d9ecff;
+    }
+
+    .tag-sz {
+      background: #f4f4f5;
+      color: #606266;
+      border: 1px solid #e9e9eb;
+    }
+
+    .tag-hk {
+      background: #f0f9eb;
+      color: #67c23a;
+      border: 1px solid #c2e7b0;
+    }
+
+    .tag-other {
+      background: #f4f4f5;
+      color: #909399;
+      border: 1px solid #e9e9eb;
+    }
+
+    .sub-line {
+      font-size: 11px;
+      font-family: 'Monaco', 'Consolas', monospace;
+      color: #909399;
+    }
+
+    .cfg-btn {
+      padding: 2px 4px;
+    }
+
+    @keyframes flash-blue {
+
+      0%,
+      100% {
+        background-color: transparent;
+      }
+
+      50% {
+        background-color: #d9ecff;
+        border-radius: 3px;
+        box-shadow: 0 0 0 2px #409eff inset;
+      }
+    }
+
+    @keyframes flash-orange {
+
+      0%,
+      100% {
+        background-color: transparent;
+      }
+
+      50% {
+        background-color: #faecd8;
+        border-radius: 3px;
+        box-shadow: 0 0 0 2px #e6a23c inset;
+      }
+    }
+
+    @keyframes flash-gold {
+
+      0%,
+      100% {
+        background-color: transparent;
+      }
+
+      50% {
+        background-color: #fff4d6;
+        border-radius: 3px;
+        box-shadow: 0 0 0 2px #c9a400 inset;
+      }
+    }
+
+    @keyframes flash-red {
+
+      0%,
+      100% {
+        background-color: transparent;
+      }
+
+      50% {
+        background-color: #fde2e2;
+        border-radius: 3px;
+        box-shadow: 0 0 0 2px #f56c6c inset;
+      }
+    }
+
+    .flash-tp {
+      animation: flash-blue 1.2s ease-in-out infinite;
+      padding: 1px 3px;
+      display: inline-block;
+    }
+
+    .flash-sl {
+      animation: flash-orange 1.0s ease-in-out infinite;
+      padding: 1px 3px;
+      display: inline-block;
+    }
+
+    .flash-l3 {
+      animation: flash-gold 1.4s ease-in-out infinite;
+      padding: 1px 2px;
+      display: inline-block;
+    }
+
+    .flash-l2 {
+      animation: flash-orange 1.6s ease-in-out infinite;
+      padding: 1px 2px;
+      display: inline-block;
+    }
+
+    .flash-top {
+      animation: flash-blue 1.4s ease-in-out infinite;
+      padding: 1px 2px;
+      display: inline-block;
+    }
+
+    .flash-bot {
+      animation: flash-red 1.2s ease-in-out infinite;
+      padding: 1px 2px;
+      display: inline-block;
+    }
+
+    .flash-now-sl {
+      animation: flash-orange 0.9s ease-in-out infinite;
+      padding: 1px 4px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .flash-now-tp {
+      animation: flash-blue 0.9s ease-in-out infinite;
+      padding: 1px 4px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .flash-dividend-rate {
+      animation: flash-highlight 1s ease-in-out infinite;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      font-weight: 600;
+    }
+
+    @keyframes flash-highlight {
+
+      0%,
+      100% {
+        background-color: transparent;
+        box-shadow: none;
+      }
+
+      50% {
+        background-color: rgba(255, 215, 0, 0.3);
+        box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+      }
+    }
+
+    .dividend-progress-container {
+      padding: 10px 0;
+    }
+
+    .dividend-progress-track {
+      position: relative;
+      height: 24px;
+      background: #f5f7fa;
+      border-radius: 12px;
+      overflow: visible;
+    }
+
+    .dividend-progress-bar {
+      height: 100%;
+      border-radius: 12px;
+      transition: width 0.5s ease, background-color 0.3s;
+    }
+
+    .dividend-progress-bar-item {
+      position: absolute;
+      height: 100%;
+      border-radius: 12px;
+      transition: width 0.5s ease, background-color 0.3s;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+
+    .dividend-marks {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 100%;
+    }
+
+    .dividend-mark {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #e6a23c;
+      transform: translateX(-50%);
+    }
+
+    .dividend-mark::before {
+      content: '';
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 6px solid #e6a23c;
+    }
+
+    .mark-label {
+      position: absolute;
+      top: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      color: #e6a23c;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .threshold-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      background: #fafafa;
+      border-radius: 8px;
+    }
+
+    .threshold-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      margin-bottom: 8px;
+    }
+
+    .threshold-dot.dot-green {
+      background: #67c23a;
+    }
+
+    .threshold-dot.dot-yellow {
+      background: #e6a23c;
+    }
+
+    .threshold-dot.dot-orange {
+      background: #f56c6c;
+    }
+
+    .threshold-dot.dot-red {
+      background: #409eff;
+    }
+
+    .threshold-label {
+      font-size: 12px;
+      color: #606266;
+      margin-bottom: 4px;
+    }
+
+    .threshold-count {
+      font-size: 18px;
+      font-weight: 700;
+      color: #303133;
+    }
+
+    .dividend-rate {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .dividend-rate.rate-green {
+      color: #67c23a;
+      background: #f0f9eb;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .dividend-rate.rate-yellow {
+      color: #e6a23c;
+      background: #fdf6ec;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .dividend-rate.rate-orange {
+      color: #f56c6c;
+      background: #fef0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .dividend-rate.rate-blue {
+      color: #409eff;
+      background: #ecf5ff;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    @keyframes flash-dividend {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    .flash-dividend {
+      animation: flash-dividend 1.2s ease-in-out infinite;
+      color: #e6a23c;
+      font-weight: 600;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="app">
+    <div class="app-container">
+      <div class="header-box">
+        <div>
+          <h2>项目指标看板</h2>
+          <p>📋 说明：蓝色-达标区 | 橙色-警戒区。保本止损：浮盈达 1.5系数后止损抬至入标成本。
+            <span v-if="isFileProtocol" style="color:#e6a23c;font-weight:600;margin-left:8px;">
+              ⚠️ 当前为本地文件模式（file://），系统通知可能被浏览器禁用。建议使用 Live Server（http://localhost）打开。
+            </span>
+          </p>
+        </div>
+        <div class="header-actions">
+          <el-button type="success" @click="openExport">导出</el-button>
+          <el-button @click="openImport">导入</el-button>
+          <el-select v-model="selectedVoice" placeholder="语音选择" style="width: 160px; margin: 0 10px;" size="small">
+            <el-option v-for="voice in chineseVoices" :key="voice.name" :label="voice.name" :value="voice.name">
+            </el-option>
+          </el-select>
+          <el-button type="warning" @click="testNotify">测试提醒</el-button>
+        </div>
+      </div>
+
+      <el-tabs v-model="activeTab" type="border-card" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <el-tab-pane label="指标监控" name="monitor" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+          <div class="toolbar">
+            <el-input v-model="inputCodes" type="textarea" :rows="1" placeholder="输入编号（支持批量，空格/逗号分隔）"></el-input>
+            <div class="toolbar-buttons">
+              <div class="button-row">
+                <el-button type="primary" @click="addNewCodes" :loading="loading">查询并追加</el-button>
+                <el-button type="primary" @click="refreshAllPrices" :loading="loading">刷新数据</el-button>
+                <el-button :type="autoRefresh ? 'success' : 'info'" @click="toggleAutoRefresh">
+                  {{autoRefresh ? '自动刷新 ' + autoCountdown + 's' : '30s自动刷新'}}
+                </el-button>
+                <el-button @click="clearAll">清空</el-button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <el-table :data="tableData" height="100%" border style="width: 100%" v-loading="loading"
+              :row-class-name="tableRowClassName">
+              <el-table-column prop="name" label="项目 / 编号" min-width="140" fixed="left">
+                <template #default="scope">
+                  <div style="font-weight: 600; color: #303133">
+                    <span
+                      :class="['market-tag', 'tag-' + getMarket(scope.row.fullCode)]">{{getMarketLabel(scope.row.fullCode)}}</span>
+                    {{scope.row.name}}
+                  </div>
+                  <div style="font-size: 11px; color: #c0c4cc; margin-left: 32px;">{{scope.row.fullCode}}</div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="当前值 / 波动" width="160">
+                <template #default="scope">
+                  <div>
+                    <span class="price-now" :class="[getChgClass(scope.row),{ 'flash-now-tp': hasAlert(scope.row.fullCode,'TAKE_PROFIT'), 'flash-now-sl': hasAlert(scope.row.fullCode,'STOP_LOSS') }]">
+                      {{scope.row.now}}
+                    </span>
+                  </div>
+                  <div class="sub-line" :class="getChgClass(scope.row)">
+                    {{formatChg(scope.row)}}
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="均线" width="80">
+                <template #default="scope"><span class="fib-val">{{scope.row.avg}}</span></template>
+              </el-table-column>
+
+              <el-table-column label="止盈止损" width="170">
+                <template #default="scope">
+                  <div style="font-size: 12px;">
+                    <div class="fib-val" :class="{'flash-tp': hasAlert(scope.row.fullCode,'TAKE_PROFIT')}">止盈
+                      {{scope.row.takeProfit || '-'}}</div>
+                    <div class="fib-val" style="margin-top:2px;"
+                      :class="{'flash-sl': hasAlert(scope.row.fullCode,'STOP_LOSS')}">止损 {{scope.row.stopLoss || '-'}}
+                    </div>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="距离(%)" width="130">
+                <template #default="scope">
+                  <div style="font-size: 12px;">
+                    <div v-if="scope.row.toTPPct !== undefined && scope.row.toTPPct !== ''" class="sub-line"
+                      :class="[getPnlClass(scope.row._toTPNum), {'flash-tp': hasAlert(scope.row.fullCode,'TAKE_PROFIT')}]">
+                      {{scope.row.toTPPct}}</div>
+                    <div v-else class="sub-line">距止盈 -</div>
+                    <div v-if="scope.row.toSLPct !== undefined && scope.row.toSLPct !== ''" class="sub-line"
+                      :class="[getPnlClass(scope.row._toSLNum), {'flash-sl': hasAlert(scope.row.fullCode,'STOP_LOSS')}]"
+                      style="margin-top:2px;">{{scope.row.toSLPct}}</div>
+                    <div v-else class="sub-line" style="margin-top:2px;">距止损 -</div>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <!-- <el-table-column label="收益" min-width="110">
+<template #default="scope">
+<div>
+<span v-if="scope.row.pnlAmount !== undefined && scope.row.pnlAmount !== ''" :class="getPnlClass(scope.row.pnlAmount)" class="fib-val">{{scope.row.pnlAmount}}</span>
+<span v-else style="color:#c0c4cc">-</span>
+</div>
+<div class="sub-line" v-if="scope.row.pnlPct !== undefined && scope.row.pnlPct !== ''" :class="getPnlClass(scope.row.pnlAmount)">{{scope.row.pnlPct}}</div>
+</template>
+</el-table-column> -->
+
+              <el-table-column label="黄金分割线" width="210">
+                <template #default="scope">
+                  <div style="font-size: 12px;">
+                    <div>
+                      <span class="fib-val"
+                        :class="{'flash-l2': hasAlert(scope.row.fullCode,'L2_THRESH') && !hasAlert(scope.row.fullCode,'L3_THRESH')}">L1
+                        {{scope.row.f382}}</span>
+                      &nbsp;
+                      <span class="fib-val"
+                        :class="{'flash-l2': hasAlert(scope.row.fullCode,'L2_THRESH') && !hasAlert(scope.row.fullCode,'L3_THRESH')}">L2
+                        {{scope.row.f618}}</span>
+                    </div>
+                    <div class="fib-val" style="margin-top:2px;"
+                      :class="{'flash-l3': hasAlert(scope.row.fullCode,'L3_THRESH')}">L3 {{scope.row.f786}}</div>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="8848线" width="150">
+                <template #default="scope">
+                  <div style="font-size: 12px;">
+                    <div class="fib-val" :class="{'flash-top': hasAlert(scope.row.fullCode,'TOP_BOUND')}">上
+                      {{scope.row.topLine}}</div>
+                    <div class="fib-val" style="margin-top:2px;"
+                      :class="{'flash-bot': hasAlert(scope.row.fullCode,'BOT_BOUND')}">下 {{scope.row.bottomLine}}</div>
+                  </div>
+                </template>
+              </el-table-column>
+
+              <el-table-column label="操作" width="100" fixed="right" align="center">
+                <template #default="scope">
+                  <el-button size="small" link type="primary" @click="openCfg(scope.row)">参数</el-button>
+                  <el-button size="small" link type="danger" @click="removeItem(scope.$index)">移除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="红利股息监控" name="dividend" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+          <div class="toolbar">
+            <el-input v-model="dividendInputCodes" type="textarea" :rows="1" placeholder="输入股票编号（支持批量，空格/逗号分隔）"></el-input>
+            <div class="toolbar-buttons">
+              <div class="button-row">
+                <el-button type="primary" @click="addDividendCodes" :loading="dividendLoading">查询并追加</el-button>
+                <el-button type="primary" @click="refreshDividendData" :loading="dividendLoading">刷新数据</el-button>
+                <el-button :type="autoDividendRefresh ? 'success' : 'info'" @click="toggleAutoDividendRefresh">
+                  {{autoDividendRefresh ? '自动刷新 ' + dividendCountdown + 's' : '60s自动刷新'}}
+                </el-button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <el-table :data="dividendTableData" height="50%"  border style="width: 100%" v-loading="dividendLoading">
+              <el-table-column prop="name" label="股票名称" min-width="120">
+                <template #default="scope">
+                  <span
+                    :class="['market-tag', 'tag-' + getMarket(scope.row.fullCode)]">{{getMarketLabel(scope.row.fullCode)}}</span>
+                  {{scope.row.name}}
+                </template>
+              </el-table-column>
+              <el-table-column label="当前价格" width="120">
+                <template #default="scope">
+                  <div>
+                    <span class="price-now" :class="getDividendChgClass(scope.row)">{{scope.row.price || '-'}}</span>
+                  </div>
+                  <div class="sub-line" :class="getDividendChgClass(scope.row)">
+                    {{formatDividendChg(scope.row)}}
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="每股股息" width="130">
+                <template #default="scope">
+                  <el-input-number v-model="scope.row.dividendPerShare" :precision="4" :min="0" :controls="false"
+                    size="small" style="width: 100px;" @change="onUpdateDividendPerShare(scope.row)"></el-input-number>
+                </template>
+              </el-table-column>
+              <el-table-column label="股息率" width="100">
+                <template #default="scope">
+                  <span :class="['dividend-rate', getDividendClass(scope.row.dividendRate)]">
+                    {{scope.row.dividendRate !== null && scope.row.dividendRate !== undefined ?
+                    scope.row.dividendRate.toFixed(2) + '%' : '-'}}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="4%价" width="90">
+                <template #default="scope">
+                  <span :class="{'flash-dividend-rate': isDividendRateReached(scope.row, 4)}"
+                    style="color:#8e44ad">{{scope.row.priceAt400 || '-'}}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="4.5%价" width="90">
+                <template #default="scope">
+                  <span :class="{'flash-dividend-rate': isDividendRateReached(scope.row, 4.5)}"
+                    style="color:#409eff">{{scope.row.priceAt450 || '-'}}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="5%价" width="90">
+                <template #default="scope">
+                  <span :class="{'flash-dividend-rate': isDividendRateReached(scope.row, 5)}"
+                    style="color:#f56c6c">{{scope.row.priceAt500 || '-'}}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="5.5%价" width="90">
+                <template #default="scope">
+                  <span :class="{'flash-dividend-rate': isDividendRateReached(scope.row, 5.5)}"
+                    style="color:#e6a23c">{{scope.row.priceAt550 || '-'}}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="6%价" width="90">
+                <template #default="scope">
+                  <span :class="{'flash-dividend-rate': isDividendRateReached(scope.row, 6)}"
+                    style="color:#67c23a">{{scope.row.priceAt600 || '-'}}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="80" align="center">
+                <template #default="scope">
+                  <el-button size="small" link type="danger" @click="removeDividendItem(scope.$index)">移除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+
+      <el-dialog v-model="cfgVisible" title="参数设置" width="520" :close-on-click-modal="true">
+        <el-form v-if="cfgRow" label-width="110px" label-position="right" size="default">
+          <el-form-item label="阶段峰值">
+            <el-input-number v-model="cfgRow.high" :precision="3" :controls="false" style="width: 260px;"
+              @change="cfgChanged = true"></el-input-number>
+          </el-form-item>
+          <el-form-item label="阶段谷值">
+            <el-input-number v-model="cfgRow.low" :precision="3" :controls="false" style="width: 260px;"
+              @change="cfgChanged = true"></el-input-number>
+          </el-form-item>
+          <el-form-item label="波动系数(20)">
+            <el-input-number v-model="cfgRow.adr20" :precision="3" :controls="false" style="width: 260px;"
+              @change="cfgChanged = true"></el-input-number>
+          </el-form-item>
+          <el-form-item label="入标日期">
+            <el-date-picker v-model="cfgRow.buyDate" type="date" value-format="YYYY-MM-DD"
+              style="width: 260px;"></el-date-picker>
+          </el-form-item>
+          <el-form-item label="入标成本">
+            <el-input-number v-model="cfgRow.buyPrice" :precision="3" :controls="false" style="width: 260px;"
+              @change="cfgChanged = true"></el-input-number>
+          </el-form-item>
+          <el-form-item label="权重（数量）">
+            <el-input-number v-model="cfgRow.quantity" :precision="0" :controls="false" style="width: 260px;"
+              @change="cfgChanged = true"></el-input-number>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="cfgVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveCfg">保存应用</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="exportVisible" title="📤 导出数据（一键迁移）" width="720">
+        <p style="margin:0 0 8px 0;color:#606266;font-size:13px;">
+          点击下方「复制全部到剪贴板」，然后用 Live Server 打开同一页面后点【📥 导入数据】粘贴即可。或者直接下载 JSON 文件保存到本地。
+        </p>
+        <el-input v-model="exportJsonText" type="textarea" :rows="14" readonly
+          style="width:100%;font-family:'Monaco','Consolas',monospace;font-size:12px;"
+          placeholder="请先点“生成JSON”"></el-input>
+        <template #footer>
+          <el-button @click="exportVisible = false">关闭</el-button>
+          <el-button type="primary" @click="copyExportToClipboard">复制全部到剪贴板</el-button>
+          <el-button type="success" @click="downloadExportJson">下载 JSON 文件</el-button>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="importVisible" title="📥 导入数据" width="720">
+        <p style="margin:0 0 8px 0;color:#606266;font-size:13px;">
+          粘贴之前导出的 JSON 文本到下面的文本框，选择合并方式后点【确认导入】。
+        </p>
+        <el-radio-group v-model="importMode" style="margin-bottom:10px;">
+          <el-radio value="merge">合并（按编号覆盖同编号覆盖、不同编号保留两边相加）</el-radio>
+          <el-radio value="replace">替换（清空现有，用导入的覆盖整个列表）</el-radio>
+        </el-radio-group>
+        <el-input v-model="importJsonText" type="textarea" :rows="14"
+          style="width:100%;font-family:'Monaco','Consolas',monospace;font-size:12px;"
+          placeholder="请粘贴之前导出的 JSON 字符串..."></el-input>
+        <template #footer>
+          <el-button @click="importVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmImport">确认导入</el-button>
+        </template>
+      </el-dialog>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, onMounted, reactive } = Vue;
+
+    createApp({
+      setup() {
+        const STORAGE_KEY = 'phi_batch_table_v7';
+        const inputCodes = ref("");
+        const tableData = ref([]);
+        const loading = ref(false);
+        const cfgVisible = ref(false);
+        const cfgRow = ref(null);
+        const cfgChanged = ref(false);
+        const _cfgBackup = ref(null);
+
+        const isFileProtocol = ref(false);
+        try {
+          isFileProtocol.value = /^file:$/i.test(window.location.protocol);
+        } catch (e) { }
+
+        const exportVisible = ref(false);
+        const importVisible = ref(false);
+        const exportJsonText = ref('');
+        const importJsonText = ref('');
+        const importMode = ref('merge');
+
+        const autoRefresh = ref(false);
+        const autoCountdown = ref(30);
+        const _autoTimer = ref(null);
+        const _countdownTimer = ref(null);
+        const alertFlags = ref({});
+        const _audioCtx = ref(null);
+        const _voicesReady = ref(false);
+        const _speechQueue = [];
+        const _speechBusy = ref(false);
+        const selectedVoice = ref('');
+        const chineseVoices = ref([]);
+        const activeTab = ref('monitor');
+        const dividendInputCodes = ref('');
+        const dividendStockList = ref([]);
+        const dividendTableData = ref([]);
+        const dividendLoading = ref(false);
+        const autoDividendRefresh = ref(false);
+        const dividendCountdown = ref(60);
+        const _dividendTimer = ref(null);
+        const _dividendCountdownTimer = ref(null);
+        const dividendAlertFlags = ref({});
+        const currentDividendRate = ref(0);
+        const maxDividendRate = ref(10);
+
+        const dividendThresholds = [
+          { value: 6, label: '≥6%', colorClass: 'dot-green' },
+          { value: 5.5, label: '≥5.5%', colorClass: 'dot-yellow' },
+          { value: 5, label: '≥5%', colorClass: 'dot-orange' },
+          { value: 4.5, label: '≥4.5%', colorClass: 'dot-red' }
+        ];
+
+        // Mac需要主动触发voices加载，且需要用户交互
+        const initVoices = () => {
+          if (!('speechSynthesis' in window)) return;
+
+          try {
+            // 主动触发voices加载
+            const voices = window.speechSynthesis.getVoices && window.speechSynthesis.getVoices();
+
+            // 筛选中文语音
+            if (voices && voices.length > 0) {
+              const zhVoices = voices.filter(v => /zh|chinese/i.test(v.lang || ''));
+              chineseVoices.value = zhVoices;
+
+              // 设置默认语音：优先美嘉，其次婷婷
+              if (!selectedVoice.value && zhVoices.length > 0) {
+                const meijiaVoice = zhVoices.find(v => v.name.includes('美嘉'));
+                const tingtingVoice = zhVoices.find(v => v.name.includes('婷婷'));
+                selectedVoice.value = (meijiaVoice || tingtingVoice || zhVoices[0]).name;
+              }
+            }
+
+            // Mac首次可能返回空数组，需要等待事件
+            if (voices && voices.length > 0) {
+              _voicesReady.value = true;
+              return;
+            }
+
+            // 设置事件监听
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+              window.speechSynthesis.onvoiceschanged = () => {
+                const v = window.speechSynthesis.getVoices && window.speechSynthesis.getVoices();
+                if (v && v.length > 0) {
+                  _voicesReady.value = true;
+                  // 更新中文语音列表
+                  const zhVoices = v.filter(voice => /zh|chinese/i.test(voice.lang || ''));
+                  chineseVoices.value = zhVoices;
+                  if (!selectedVoice.value && zhVoices.length > 0) {
+                    const tingtingVoice = zhVoices.find(voice => voice.name.includes('婷婷'));
+                    const meijiaVoice = zhVoices.find(voice => voice.name.includes('美嘉'));
+                    const googleVoice = zhVoices.find(voice => voice.name.includes('Google 普通话'));
+                    selectedVoice.value = (tingtingVoice || meijiaVoice || googleVoice || zhVoices[0]).name;
+                  }
+                }
+              };
+            }
+
+            // 备用定时器（某些Mac浏览器事件不触发）
+            setTimeout(() => {
+              if (!_voicesReady.value) {
+                const v = window.speechSynthesis.getVoices && window.speechSynthesis.getVoices();
+                if (v && v.length > 0) {
+                  const zhVoices = v.filter(voice => /zh|chinese/i.test(voice.lang || ''));
+                  chineseVoices.value = zhVoices;
+                  if (!selectedVoice.value && zhVoices.length > 0) {
+                    const googleVoice = zhVoices.find(voice => voice.name.includes('Google 普通话'));
+                    const tingtingVoice = zhVoices.find(voice => voice.name.includes('婷婷'));
+                    selectedVoice.value = (googleVoice || tingtingVoice || zhVoices[0]).name;
+                  }
+                }
+                _voicesReady.value = true;
+              }
+            }, 1000);
+          } catch (e) {
+            console.error('初始化语音引擎失败:', e);
+          }
+        };
+
+        // 首次用户交互后初始化
+        let voicesInitAttempted = false;
+        const ensureVoicesInit = () => {
+          if (voicesInitAttempted) return;
+          voicesInitAttempted = true;
+          initVoices();
+        };
+
+        // 监听首次用户交互
+        if ('speechSynthesis' in window) {
+          const initOnUserAction = () => {
+            ensureVoicesInit();
+            document.removeEventListener('click', initOnUserAction);
+            document.removeEventListener('keydown', initOnUserAction);
+          };
+          document.addEventListener('click', initOnUserAction, { once: true });
+          document.addEventListener('keydown', initOnUserAction, { once: true });
+
+          // 页面加载后延迟初始化（Windows可以不需要交互）
+          setTimeout(ensureVoicesInit, 500);
+        }
+
+        const initAudio = () => {
+          if (!_audioCtx.value) {
+            try {
+              _audioCtx.value = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) { _audioCtx.value = null; }
+          }
+          if (_audioCtx.value && _audioCtx.value.state === 'suspended') _audioCtx.value.resume();
+        };
+
+        const playBeep = (level = 1) => {
+          initAudio();
+          if (!_audioCtx.value) return;
+          const ctx = _audioCtx.value;
+          const freqs = level === 1 ? [880] : level === 2 ? [1100, 980] : [660, 880, 1100, 990];
+          const gain = ctx.createGain();
+          gain.gain.value = 0.08;
+          gain.connect(ctx.destination);
+          let tStart = ctx.currentTime;
+          freqs.forEach((f, i) => {
+            const osc = ctx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.value = f;
+            const t0 = tStart + i * 0.13;
+            gain.gain.setValueAtTime(0, t0);
+            gain.gain.linearRampToValueAtTime(0.08, t0 + 0.02);
+            gain.gain.setValueAtTime(0.08, t0 + 0.1);
+            gain.gain.linearRampToValueAtTime(0, t0 + 0.12);
+            osc.connect(gain);
+            osc.start(t0);
+            osc.stop(t0 + 0.15);
+          });
+        };
+
+        const fireNotify = (title, body, level) => {
+          let shown = false;
+          try {
+            if (!isFileProtocol.value && 'Notification' in window && Notification.permission === 'granted') {
+              const notification = new Notification(title, {
+                body,
+                silent: false,
+                requireInteraction: false
+              });
+
+              // Mac上通知可能需要事件处理
+              notification.onclick = () => {
+                notification.close();
+                window.focus();
+              };
+
+              notification.onerror = (e) => {
+                console.warn('通知显示失败:', e);
+              };
+
+              shown = true;
+            }
+          } catch (e) {
+            console.error('发送通知失败:', e);
+            shown = false;
+          }
+          try { ElementPlus.ElMessage({ type: 'warning', message: title + ' ' + body, duration: 4500, showClose: true, grouping: true }); } catch (e2) { }
+          speakAlert(title, body, level);
+        };
+
+        // Mac SpeechSynthesis修复：强制唤醒引擎
+        const wakeUpSpeechSynthesis = () => {
+          if (!('speechSynthesis' in window)) return;
+
+          // Mac修复：播放一个静音的utterance来"唤醒"引擎
+          try {
+            const dummy = new SpeechSynthesisUtterance('');
+            dummy.volume = 0;
+            dummy.rate = 10; // 极快播放
+            window.speechSynthesis.speak(dummy);
+          } catch (e) { }
+
+          // 强制刷新引擎状态
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        };
+
+        // Mac SpeechSynthesis修复：队列播放 + 状态恢复
+        const processNextSpeech = () => {
+          if (_speechBusy.value || _speechQueue.length === 0) return;
+
+          const item = _speechQueue.shift();
+          if (!item) return;
+
+          _speechBusy.value = true;
+          const { text, level } = item;
+
+          const doSpeak = () => {
+            // 调试：打印可用的voices
+            const voices = window.speechSynthesis.getVoices && window.speechSynthesis.getVoices();
+            console.log('可用的语音列表:', voices ? voices.length : 0);
+            if (voices && voices.length > 0) {
+              const zhVoices = voices.filter(v => /zh|chinese/i.test(v.lang || ''));
+              console.log('中文语音:', zhVoices.map(v => `${v.name}(${v.lang})`));
+            }
+
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'zh-CN';
+            utter.rate = 1.0;
+            utter.pitch = 1.0;
+            utter.volume = 1.0;
+
+            // 使用用户选择的语音
+            let voiceToUse = null;
+            if (selectedVoice.value && voices && voices.length) {
+              voiceToUse = voices.find(v => v.name === selectedVoice.value);
+              if (voiceToUse) {
+                console.log('使用选择的语音:', voiceToUse.name, voiceToUse.lang);
+              }
+            }
+
+            // 如果用户没有选择，使用默认逻辑
+            if (!voiceToUse && voices && voices.length) {
+              const tingtingVoice = voices.find(v => v.name.includes('婷婷') && v.lang === 'zh-CN');
+              const meijiaVoice = voices.find(v => v.name.includes('美嘉'));
+              const googleVoice = voices.find(v => v.name.includes('Google 普通话'));
+              const zhCNVoice = voices.find(v => v.lang === 'zh-CN');
+
+              voiceToUse = tingtingVoice || meijiaVoice || googleVoice || zhCNVoice;
+              if (voiceToUse) {
+                console.log('使用默认语音:', voiceToUse.name, voiceToUse.lang);
+              }
+            }
+
+            if (voiceToUse) {
+              utter.voice = voiceToUse;
+            } else {
+              console.warn('未找到合适的语音，使用默认');
+            }
+
+            let completed = false;
+            let started = false;
+            const startTime = Date.now();
+
+            const timeout = setTimeout(() => {
+              if (!completed) {
+                const elapsed = Date.now() - startTime;
+                console.warn(`语音播放超时(${elapsed}ms)，引擎状态: speaking=${window.speechSynthesis.speaking}, paused=${window.speechSynthesis.paused}, started=${started}`);
+                completed = true;
+                window.speechSynthesis.cancel();
+                _speechBusy.value = false;
+                playBeep(level);
+                setTimeout(processNextSpeech, 100);
+              }
+            }, 8000);
+
+            utter.onstart = () => {
+              started = true;
+              console.log('语音开始播放');
+            };
+
+            utter.onend = () => {
+              const elapsed = Date.now() - startTime;
+              console.log(`语音播放完成(${elapsed}ms)`);
+              completed = true;
+              clearTimeout(timeout);
+              _speechBusy.value = false;
+              setTimeout(processNextSpeech, 100);
+            };
+
+            utter.onerror = (e) => {
+              if (!completed) {
+                const elapsed = Date.now() - startTime;
+                console.error(`语音播放错误(${elapsed}ms):`, e.error, e);
+                completed = true;
+                clearTimeout(timeout);
+                _speechBusy.value = false;
+                playBeep(level);
+                setTimeout(processNextSpeech, 100);
+              }
+            };
+
+            // Mac修复：强制清空引擎状态
+            window.speechSynthesis.cancel();
+
+            // Mac修复：多次调用cancel确保清空
+            setTimeout(() => window.speechSynthesis.cancel(), 50);
+            setTimeout(() => window.speechSynthesis.cancel(), 100);
+
+            // Mac修复：唤醒引擎
+            setTimeout(() => {
+              wakeUpSpeechSynthesis();
+
+              // 再延迟一下播放
+              setTimeout(() => {
+                try {
+                  console.log('开始调用speak()，文本:', text.substring(0, 20) + '...');
+                  window.speechSynthesis.speak(utter);
+
+                  // Mac修复：如果引擎卡住，检测并强制恢复
+                  const checkStart = setTimeout(() => {
+                    if (!started && !completed) {
+                      console.warn('引擎未启动，尝试强制恢复...');
+                      window.speechSynthesis.cancel();
+                      window.speechSynthesis.pause();
+                      window.speechSynthesis.resume();
+                    }
+                  }, 500);
+
+                  // 清理检测器
+                  const cleanup = () => clearTimeout(checkStart);
+                  if (completed) cleanup();
+                } catch (e) {
+                  console.error('语音合成调用失败:', e);
+                  completed = true;
+                  clearTimeout(timeout);
+                  _speechBusy.value = false;
+                  playBeep(level);
+                  setTimeout(processNextSpeech, 100);
+                }
+              }, 150);
+            }, 150);
+          };
+
+          // 等待voices准备好
+          if (!_voicesReady.value && window.speechSynthesis.getVoices) {
+            const checkVoices = (attempts = 0) => {
+              const v = window.speechSynthesis.getVoices();
+              if (v && v.length > 0) {
+                _voicesReady.value = true;
+                console.log('Voices加载完成，数量:', v.length);
+                doSpeak();
+              } else if (attempts < 10) {
+                setTimeout(() => checkVoices(attempts + 1), 100);
+              } else {
+                console.warn('Voices未加载，使用默认设置');
+                _voicesReady.value = true;
+                doSpeak();
+              }
+            };
+            checkVoices();
+          } else {
+            doSpeak();
+          }
+        };
+
+        const speakAlert = (title, body, level) => {
+          initAudio();
+
+          try {
+            if ('speechSynthesis' in window) {
+              const cleanText = (title + '。' + body).replace(/[⚠️✅📈📉🔻🟠🔔📋]+/g, '').replace(/\s+/g, ' ').trim();
+              if (!cleanText) {
+                playBeep(level);
+                return;
+              }
+
+              // 添加到队列
+              _speechQueue.push({ text: cleanText, level });
+
+              // 如果队列过长，移除旧的（避免内存泄漏）
+              if (_speechQueue.length > 10) {
+                _speechQueue.shift();
+              }
+
+              // 开始处理队列
+              processNextSpeech();
+              return;
+            }
+          } catch (e) {
+            console.error('语音合成失败:', e);
+          }
+
+          playBeep(level);
+        };
+
+        const testNotify = () => {
+          initAudio();
+          if ('Notification' in window) {
+            if (Notification.permission === 'granted') {
+              fireNotify('🔔 指标提醒测试', '通知与语音通道正常。您将在触发阈值时收到提醒。', 2);
+            } else if (Notification.permission === 'denied') {
+              ElementPlus.ElMessage.error('通知权限已被拒绝。请点击浏览器地址栏左侧 🔒 图标手动开启通知权限后再试。下方仍提供语音与站内提醒。');
+              speakAlert('指标提醒测试', '站内提醒与语音通道正常。如需要系统通知请手动开启浏览器权限。', 2);
+            } else {
+              ElementPlus.ElMessage.info('即将请求系统通知权限。请在弹窗中点“允许”，请求后将立即发送一条测试通知。');
+              try {
+                Notification.requestPermission().then(r => {
+                  setTimeout(() => {
+                    if (r === 'granted') {
+                      fireNotify('🔔 指标提醒测试', '通知权限已开启。语音与系统通知通道正常。', 2);
+                    } else {
+                      ElementPlus.ElMessage.warning('未开启系统通知，将自动降级为站内消息提醒 + 语音播报。');
+                      speakAlert('指标提醒测试', '语音播报通道正常。系统通知未开启时将使用站内提醒。', 2);
+                    }
+                  }, 150);
+                });
+              } catch (e) {
+                speakAlert('指标提醒测试', '语音播报通道正常。', 2);
+              }
+            }
+          } else {
+            ElementPlus.ElMessage.warning('当前浏览器不支持系统通知，将使用站内消息 + 语音提醒。');
+            speakAlert('指标提醒测试', '语音播报通道正常。', 2);
+          }
+        };
+
+        const ensureNotifyPerm = async () => {
+          if (!('Notification' in window)) return false;
+          if (Notification.permission === 'granted') return true;
+          if (Notification.permission === 'denied') return false;
+          try {
+            const r = await Notification.requestPermission();
+            return r === 'granted';
+          } catch (e) { return false; }
+        };
+
+        const alertTypeKey = (code, type) => `${code}__${type}`;
+
+        const hasAlert = (code, type) => {
+          if (!code) return false;
+          return !!alertFlags.value[alertTypeKey(code, type)];
+        };
+
+        const checkAlertsForRow = (row) => {
+          const code = row.fullCode;
+          const now = parseFloat(row.now);
+          if (!now || isNaN(now)) return;
+          const name = row.name;
+          const mk = (type) => alertTypeKey(code, type);
+
+          const sl = parseFloat(row.stopLoss);
+          if (sl > 0 && now <= sl) {
+            if (!alertFlags.value[mk('STOP_LOSS')]) {
+              alertFlags.value[mk('STOP_LOSS')] = now;
+              fireNotify('⚠️ 破位警告', `${name} 已跌破止损 ${sl.toFixed(3)}（当前 ${now}）`, 3);
+            }
+          } else {
+            delete alertFlags.value[mk('STOP_LOSS')];
+          }
+
+          const tp = parseFloat(row.takeProfit);
+          if (tp > 0 && now >= tp) {
+            if (!alertFlags.value[mk('TAKE_PROFIT')]) {
+              alertFlags.value[mk('TAKE_PROFIT')] = now;
+              fireNotify('✅ 达标提醒', `${name} 已达止盈 ${tp.toFixed(3)}（当前 ${now}）`, 2);
+            }
+          } else {
+            delete alertFlags.value[mk('TAKE_PROFIT')];
+          }
+
+          const topL = parseFloat(row.topLine);
+          if (topL > 0 && now >= topL) {
+            if (!alertFlags.value[mk('TOP_BOUND')]) {
+              alertFlags.value[mk('TOP_BOUND')] = now;
+              fireNotify('📈 触顶提醒', `${name} 上穿8848高位 ${topL.toFixed(3)}（当前 ${now}）`, 1);
+            }
+          } else {
+            delete alertFlags.value[mk('TOP_BOUND')];
+          }
+
+          const botL = parseFloat(row.bottomLine);
+          if (botL > 0 && now <= botL) {
+            if (!alertFlags.value[mk('BOT_BOUND')]) {
+              alertFlags.value[mk('BOT_BOUND')] = now;
+              fireNotify('📉 触底提醒', `${name} 下穿8848低位 ${botL.toFixed(3)}（当前 ${now}）`, 1);
+            }
+          } else {
+            delete alertFlags.value[mk('BOT_BOUND')];
+          }
+
+          const l3 = parseFloat(row.f786);
+          if (l3 > 0 && now <= l3) {
+            if (!alertFlags.value[mk('L3_THRESH')]) {
+              alertFlags.value[mk('L3_THRESH')] = now;
+              fireNotify('🔻 L3 警戒', `${name} 跌破 L3 阈值 ${l3.toFixed(3)}（当前 ${now}）`, 2);
+            }
+          } else {
+            delete alertFlags.value[mk('L3_THRESH')];
+          }
+
+          const l2 = parseFloat(row.f618);
+          if (l2 > 0 && now <= l2 && !alertFlags.value[mk('L3_THRESH')]) {
+            if (!alertFlags.value[mk('L2_THRESH')]) {
+              alertFlags.value[mk('L2_THRESH')] = now;
+              fireNotify('🟠 L2 预警', `${name} 跌破 L2 阈值 ${l2.toFixed(3)}（当前 ${now}）`, 1);
+            }
+          } else {
+            delete alertFlags.value[mk('L2_THRESH')];
+          }
+        };
+
+        const checkAllAlerts = () => {
+          tableData.value.forEach(row => ensureFields(row));
+          tableData.value.forEach(checkAlertsForRow);
+        };
+
+        const getDividendColor = (rate) => {
+          if (rate >= 6) return '#67c23a';
+          if (rate >= 5.5) return '#e6a23c';
+          if (rate >= 5) return '#f56c6c';
+          if (rate >= 4.5) return '#409eff';
+          return '#909399';
+        };
+
+        const getDividendClass = (rate) => {
+          if (rate >= 6) return 'rate-green';
+          if (rate >= 5.5) return 'rate-yellow';
+          if (rate >= 5) return 'rate-orange';
+          if (rate >= 4.5) return 'rate-blue';
+          return '';
+        };
+
+        const getDividendEmoji = (rate) => {
+          if (rate >= 6) return '🟢';
+          if (rate >= 5.5) return '🟡';
+          if (rate >= 5) return '🟠';
+          if (rate >= 4.5) return '🔵';
+          return '';
+        };
+
+        const getThresholdCount = (threshold) => {
+          return dividendTableData.value.filter(row => row.dividendRate !== undefined && row.dividendRate !== null && row.dividendRate >= threshold).length;
+        };
+
+        const dividendAlertTypeKey = (code, type) => `dividend__${code}__${type}`;
+
+        const hasDividendAlert = (code) => {
+          if (!code) return false;
+          return Object.keys(dividendAlertFlags.value).some(key => key.startsWith(`dividend__${code}`));
+        };
+
+        const checkDividendAlerts = () => {
+          dividendTableData.value.forEach(row => {
+            const code = row.fullCode;
+            const rate = parseFloat(row.dividendRate);
+            if (!code || isNaN(rate)) return;
+            const name = row.name;
+
+            // 找到达到的最高阈值
+            const thresholds = [6, 5.5, 5, 4.5];
+            const reachedThreshold = thresholds.find(t => rate >= t);
+
+            // 只对最高阈值触发告警，清除其他低级别的告警标记
+            thresholds.forEach(threshold => {
+              const key = dividendAlertTypeKey(code, threshold);
+              if (threshold === reachedThreshold) {
+                // 最高阈值：触发告警
+                if (!dividendAlertFlags.value[key]) {
+                  dividendAlertFlags.value[key] = rate;
+                  const emoji = getDividendEmoji(threshold);
+                  fireNotify(`${emoji} 股息率突破`, `${name} 股息率达到 ${threshold}%（当前 ${rate.toFixed(2)}%）`, 2);
+                }
+              } else {
+                // 其他阈值：清除标记
+                delete dividendAlertFlags.value[key];
+              }
+            });
+          });
+        };
+
+        const isDividendRateReached = (row, threshold) => {
+          const rate = parseFloat(row.dividendRate);
+          if (isNaN(rate)) return false;
+          // 当前股息率 >= 该阈值，且是达到的最高阈值（按0.5%档位）
+          const thresholds = [6, 5.5, 5, 4.5, 4];
+          const reached = thresholds.find(t => rate >= t);
+          return reached === threshold;
+        };
+
+        const getDividendChgClass = (row) => {
+          const now = parseFloat(row.price);
+          const prev = parseFloat(row.prevClose) || 0;
+          if (prev <= 0) return '';
+          if (now > prev) return 'up-text';
+          if (now < prev) return 'down-text';
+          return '';
+        };
+
+        const formatDividendChg = (row) => {
+          const now = parseFloat(row.price);
+          const prev = parseFloat(row.prevClose) || 0;
+          if (prev <= 0 || !now) return '-';
+          const diff = now - prev;
+          const pct = (diff / prev) * 100;
+          const sign = diff >= 0 ? '+' : '';
+          return `${sign}${diff.toFixed(2)} ${sign}${pct.toFixed(2)}%`;
+        };
+
+        const calcDividendFields = (row) => {
+          const dps = parseFloat(row.dividendPerShare) || 0;
+          const price = parseFloat(row.price) || 0;
+          if (dps > 0 && price > 0) {
+            row.dividendRate = parseFloat(((dps / price) * 100).toFixed(2));
+            row.priceAt400 = parseFloat((dps / 0.040).toFixed(3));
+            row.priceAt450 = parseFloat((dps / 0.045).toFixed(3));
+            row.priceAt500 = parseFloat((dps / 0.05).toFixed(3));
+            row.priceAt550 = parseFloat((dps / 0.055).toFixed(3));
+            row.priceAt600 = parseFloat((dps / 0.06).toFixed(3));
+          } else {
+            row.dividendRate = null;
+            row.priceAt400 = null;
+            row.priceAt450 = null;
+            row.priceAt500 = null;
+            row.priceAt550 = null;
+            row.priceAt600 = null;
+          }
+        };
+
+        const onUpdateDividendPerShare = (row) => {
+          calcDividendFields(row);
+          // 同步到 dividendStockList
+          const stockItem = dividendStockList.value.find(s => s.fullCode === row.fullCode);
+          if (stockItem) {
+            stockItem.dividendPerShare = row.dividendPerShare;
+          }
+          saveDividendStocksToLocal();
+          localStorage.setItem('dividend_data_v1', JSON.stringify(dividendTableData.value));
+          checkDividendAlerts();
+        };
+
+        const fetchDividendData = () => {
+          const codes = dividendStockList.value.map(item => item.fullCode).filter(c => c);
+          if (codes.length === 0) {
+            dividendLoading.value = false;
+            return;
+          }
+
+          dividendLoading.value = true;
+          const queryStr = codes.join(',');
+
+          const oldScript = document.getElementById('jsonp-dividend');
+          if (oldScript) oldScript.remove();
+
+          const script = document.createElement('script');
+          script.id = 'jsonp-dividend';
+          script.src = `https://qt.gtimg.cn/q=${queryStr}`;
+          document.body.appendChild(script);
+
+          script.onload = () => {
+            // 更新 dividendStockList 中的名称和价格
+            codes.forEach(code => {
+              const dataStr = window[`v_${code}`];
+              if (dataStr) {
+                const d = dataStr.split('~');
+                const nowPrice = parseFloat(d[3]);
+                const prevClose = parseFloat(d[4]) || 0;
+                const item = dividendStockList.value.find(r => r.fullCode === code);
+                if (item) {
+                  item.name = d[1];
+                  item.price = nowPrice;
+                  item.prevClose = prevClose;
+                }
+              }
+            });
+
+            // 更新已有行的价格，保留用户编辑的股息
+            dividendTableData.value.forEach(row => {
+              const stockItem = dividendStockList.value.find(s => s.fullCode === row.fullCode);
+              if (stockItem) {
+                row.name = stockItem.name;
+                row.price = stockItem.price || 0;
+                row.prevClose = stockItem.prevClose || 0;
+                calcDividendFields(row);
+              }
+            });
+
+            // 新增 dividendStockList 中有但表中没有的股票
+            const existingCodes = new Set(dividendTableData.value.map(r => r.fullCode));
+            dividendStockList.value.forEach(item => {
+              if (!existingCodes.has(item.fullCode)) {
+                const row = reactive({
+                  name: item.name,
+                  fullCode: item.fullCode,
+                  price: item.price || 0,
+                  dividendPerShare: item.dividendPerShare || 0
+                });
+                calcDividendFields(row);
+                dividendTableData.value.push(row);
+              }
+            });
+
+            // 按股息率降序排序
+            dividendTableData.value.sort((a, b) => {
+              const rateA = a.dividendRate !== null && !isNaN(a.dividendRate) ? a.dividendRate : -Infinity;
+              const rateB = b.dividendRate !== null && !isNaN(b.dividendRate) ? b.dividendRate : -Infinity;
+              return rateB - rateA;
+            });
+
+            saveDividendStocksToLocal();
+            localStorage.setItem('dividend_data_v1', JSON.stringify(dividendTableData.value));
+            dividendLoading.value = false;
+            checkDividendAlerts();
+          };
+
+          script.onerror = () => {
+            dividendLoading.value = false;
+            ElementPlus.ElMessage.error('刷新失败，请重试');
+          };
+        };
+
+        const addDividendCodes = () => {
+          const codes = dividendInputCodes.value.split(/[,\s\n]/).map(c => formatCode(c)).filter(c => c);
+          if (codes.length === 0) return;
+
+          dividendLoading.value = true;
+          const queryStr = codes.join(',');
+
+          const oldScript = document.getElementById('jsonp-dividend');
+          if (oldScript) oldScript.remove();
+
+          const script = document.createElement('script');
+          script.id = 'jsonp-dividend';
+          script.src = `https://qt.gtimg.cn/q=${queryStr}`;
+          document.body.appendChild(script);
+
+          script.onload = () => {
+            codes.forEach(code => {
+              const dataStr = window[`v_${code}`];
+              if (dataStr) {
+                const d = dataStr.split('~');
+                const nowPrice = parseFloat(d[3]);
+                const existingIndex = dividendStockList.value.findIndex(item => item.fullCode === code);
+
+                if (existingIndex === -1) {
+                  dividendStockList.value.unshift({
+                    name: d[1],
+                    fullCode: code,
+                    price: nowPrice,
+                    dividendPerShare: 0
+                  });
+                }
+              }
+            });
+            dividendInputCodes.value = '';
+            dividendLoading.value = false;
+            saveDividendStocksToLocal();
+            fetchDividendData();
+          };
+
+          script.onerror = () => {
+            dividendLoading.value = false;
+            ElementPlus.ElMessage.error('股票查询失败');
+          };
+        };
+
+        const removeDividendItem = (index) => {
+          dividendStockList.value.splice(index, 1);
+          saveDividendStocksToLocal();
+          fetchDividendData();
+        };
+
+        const saveDividendStocksToLocal = () => {
+          localStorage.setItem('dividend_stocks_v1', JSON.stringify(dividendStockList.value));
+        };
+
+        const refreshDividendData = () => {
+          fetchDividendData();
+        };
+
+        const toggleAutoDividendRefresh = () => {
+          if (autoDividendRefresh.value) {
+            autoDividendRefresh.value = false;
+            dividendCountdown.value = 60;
+            if (_dividendTimer.value) { clearInterval(_dividendTimer.value); _dividendTimer.value = null; }
+            if (_dividendCountdownTimer.value) { clearInterval(_dividendCountdownTimer.value); _dividendCountdownTimer.value = null; }
+            ElementPlus.ElMessage.success('已关闭股息数据自动刷新。');
+            return;
+          }
+
+          initAudio();
+          ElementPlus.ElMessage.info('开启 60 秒股息数据自动刷新模式。');
+
+          autoDividendRefresh.value = true;
+          dividendCountdown.value = 60;
+          _dividendCountdownTimer.value = setInterval(() => {
+            dividendCountdown.value--;
+            if (dividendCountdown.value <= 0) dividendCountdown.value = 60;
+          }, 1000);
+          _dividendTimer.value = setInterval(() => {
+            if (dividendTableData.value.length > 0 && !dividendLoading.value) {
+              refreshDividendData();
+            }
+          }, 60000);
+          refreshDividendData();
+        };
+
+        const toggleAutoRefresh = () => {
+          if (autoRefresh.value) {
+            autoRefresh.value = false;
+            autoCountdown.value = 30;
+            if (_autoTimer.value) { clearInterval(_autoTimer.value); _autoTimer.value = null; }
+            if (_countdownTimer.value) { clearInterval(_countdownTimer.value); _countdownTimer.value = null; }
+            ElementPlus.ElMessage.success('已关闭自动刷新。');
+            return;
+          }
+          initAudio();
+          ElementPlus.ElMessage.info('开启 30 秒自动刷新模式。若要测试提醒通道，请先点击旁边的【测试提醒】按钮。');
+
+          if ('Notification' in window) {
+            if (Notification.permission === 'granted') {
+              setTimeout(() => {
+                fireNotify('🔄 自动刷新已开启', '将每 30 秒刷新一次数据，并在触发阈值时发送提醒。', 1);
+              }, 80);
+            } else if (Notification.permission === 'default') {
+              try {
+                Notification.requestPermission().then(r => {
+                  setTimeout(() => {
+                    if (r === 'granted') {
+                      fireNotify('🔄 自动刷新已开启', '将每 30 秒刷新一次数据，并在触发阈值时发送系统通知。', 1);
+                    } else {
+                      ElementPlus.ElMessage.warning('未开启系统通知。触发阈值时将通过站内消息和语音进行提醒。');
+                      speakAlert('自动刷新已开启', '未开启系统通知。触发阈值时将通过站内消息和语音进行提醒。', 1);
+                    }
+                  }, 200);
+                });
+              } catch (e) { }
+            } else {
+              ElementPlus.ElMessage.warning('通知权限已被手动拒绝。请点击浏览器地址栏左侧 🔒 图标重新允许。\n已自动开启站内消息 + 语音双提醒，不影响使用。');
+              speakAlert('自动刷新已开启', '通知权限已拒绝。将使用站内消息加语音进行提醒。', 1);
+            }
+          } else {
+            speakAlert('自动刷新已开启', '将每 30 秒刷新一次数据。', 1);
+          }
+
+          autoRefresh.value = true;
+          autoCountdown.value = 30;
+          _countdownTimer.value = setInterval(() => {
+            autoCountdown.value--;
+            if (autoCountdown.value <= 0) autoCountdown.value = 30;
+          }, 1000);
+          _autoTimer.value = setInterval(() => {
+            if (tableData.value.length > 0 && !loading.value) {
+              refreshAllPrices();
+            }
+          }, 30000);
+          refreshAllPrices();
+        };
+
+        const ensureFields = (row) => {
+          if (row.buyPrice === undefined || row.buyPrice === null) row.buyPrice = 0;
+          if (row.adr20 === undefined) row.adr20 = 0;
+          if (row.takeProfit === undefined) row.takeProfit = '';
+          if (row.stopLoss === undefined) row.stopLoss = '';
+          if (row.buyDate === undefined) row.buyDate = '';
+          if (row.maxSinceBuy === undefined || row.maxSinceBuy === null) row.maxSinceBuy = 0;
+          if (row.prevClose === undefined || row.prevClose === null) row.prevClose = 0;
+          if (row.quantity === undefined || row.quantity === null) row.quantity = 0;
+          if (row.pnlAmount === undefined) row.pnlAmount = '';
+          if (row.pnlPct === undefined) row.pnlPct = '';
+          if (row.toTPPct === undefined) row.toTPPct = '';
+          if (row.toSLPct === undefined) row.toSLPct = '';
+          if (row._toTPNum === undefined) row._toTPNum = 0;
+          if (row._toSLNum === undefined) row._toSLNum = 0;
+          return row;
+        };
+
+        const tableRowClassName = ({ row }) => {
+          const now = parseFloat(row.now);
+          const sl = parseFloat(row.stopLoss);
+          const tp = parseFloat(row.takeProfit);
+          if (!isNaN(sl) && sl > 0 && now <= sl) return 'stoploss-row';
+          if (!isNaN(tp) && tp > 0 && now >= tp) return 'takeprofit-row';
+          if (isNaN(now) || !row.f618) return '';
+          if (now <= parseFloat(row.f786)) return 'danger-row';
+          if (now <= parseFloat(row.f618)) return 'warning-row';
+          return '';
+        };
+
+        const getMarket = (fullCode) => {
+          if (fullCode.startsWith('sh')) return 'sh';
+          if (fullCode.startsWith('sz')) return 'sz';
+          if (fullCode.startsWith('hk')) return 'hk';
+          if (fullCode.startsWith('bj')) return 'bj';
+          return 'other';
+        };
+
+        const getMarketLabel = (fullCode) => {
+          if (fullCode.startsWith('sh')) return 'A类';
+          if (fullCode.startsWith('sz')) return 'B类';
+          if (fullCode.startsWith('hk')) return 'C类';
+          if (fullCode.startsWith('bj')) return 'D类';
+          return 'E类';
+        };
+
+        const getChgClass = (row) => {
+          const now = parseFloat(row.now);
+          const prev = parseFloat(row.prevClose) || 0;
+          if (prev <= 0) return '';
+          if (now > prev) return 'up-text';
+          if (now < prev) return 'down-text';
+          return '';
+        };
+
+        const formatChg = (row) => {
+          const now = parseFloat(row.now);
+          const prev = parseFloat(row.prevClose) || 0;
+          if (prev <= 0 || isNaN(now)) return '-';
+          const diff = now - prev;
+          const pct = (diff / prev) * 100;
+          const sign = diff > 0 ? '+' : '';
+          return `${sign}${diff.toFixed(2)}  (${sign}${pct.toFixed(2)}%)`;
+        };
+
+        const getPnlClass = (val) => {
+          const v = parseFloat(val);
+          if (isNaN(v)) return '';
+          if (v > 0) return 'up-text';
+          if (v < 0) return 'alert-text';
+          return '';
+        };
+
+        const openCfg = (row) => {
+          if (!row) return;
+          ensureFields(row);
+          _cfgBackup.value = JSON.parse(JSON.stringify({
+            high: row.high, low: row.low, adr20: row.adr20,
+            buyDate: row.buyDate, buyPrice: row.buyPrice, quantity: row.quantity
+          }));
+          cfgRow.value = row;
+          cfgChanged.value = false;
+          cfgVisible.value = true;
+        };
+
+        const saveCfg = () => {
+          if (cfgRow.value) {
+            calculateRow(cfgRow.value);
+            saveToLocal();
+          }
+          cfgVisible.value = false;
+          cfgRow.value = null;
+          _cfgBackup.value = null;
+        };
+
+        onMounted(() => {
+          // 恢复告警状态，避免刷新页面后重复告警
+          const cachedFlags = localStorage.getItem('alert_flags_v1');
+          if (cachedFlags) {
+            try { alertFlags.value = JSON.parse(cachedFlags); } catch (e) { }
+          }
+
+          const cached = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('phi_batch_table_v6') || localStorage.getItem('phi_batch_table_v5');
+          if (cached) {
+            tableData.value = JSON.parse(cached).map(item => ensureFields(reactive(item)));
+            refreshAllPrices();
+            tableData.value.forEach(r => calculateRow(r));
+          }
+
+          const cachedDividendStocks = localStorage.getItem('dividend_stocks_v1');
+          if (cachedDividendStocks) {
+            try {
+              dividendStockList.value = JSON.parse(cachedDividendStocks).map(item => ({
+                ...item,
+                dividendPerShare: item.dividendPerShare || 0
+              }));
+            } catch (e) { }
+          }
+
+          const cachedDividend = localStorage.getItem('dividend_data_v1');
+          if (cachedDividend) {
+            try {
+              dividendTableData.value = JSON.parse(cachedDividend).map(item => ({
+                ...item,
+                dividendPerShare: item.dividendPerShare || 0
+              }));
+              // 按股息率降序排序
+              dividendTableData.value.sort((a, b) => {
+                const rateA = a.dividendRate !== null && !isNaN(a.dividendRate) ? a.dividendRate : -Infinity;
+                const rateB = b.dividendRate !== null && !isNaN(b.dividendRate) ? b.dividendRate : -Infinity;
+                return rateB - rateA;
+              });
+              if (dividendTableData.value.length > 0) {
+                const rates = dividendTableData.value.filter(r => r.dividendRate !== null && !isNaN(r.dividendRate)).map(r => r.dividendRate);
+                if (rates.length > 0) {
+                  currentDividendRate.value = rates[0];
+                  maxDividendRate.value = Math.max(...rates) * 1.2;
+                }
+              }
+            } catch (e) { }
+          }
+
+          if (isFileProtocol.value) {
+            setTimeout(() => {
+              try {
+                ElementPlus.ElMessageBox.alert(
+                  '当前为本地 file:// 模式，浏览器通常会禁用系统通知。\n\n为了完整使用：\n1. 使用 Live Server 等工具以 http://localhost 打开页面（系统通知 + 语音完整）\n2. 数据迁移：先用右上角【📤 导出数据】复制 JSON，切到 localhost 后点【📥 导入数据】粘贴即可。',
+                  '检测到本地文件模式（file://）',
+                  { confirmButtonText: '知道了', type: 'warning', showClose: true }
+                );
+              } catch (e) { }
+            }, 150);
+          }
+        });
+
+        const openExport = () => {
+          exportJsonText.value = JSON.stringify(
+            {
+              version: 8,
+              exportedAt: new Date().toISOString(),
+              monitor: { items: tableData.value },
+              dividend: {
+                stocks: dividendStockList.value,
+                data: dividendTableData.value
+              }
+            },
+            null, 2
+          );
+          exportVisible.value = true;
+        };
+
+        const copyExportToClipboard = async () => {
+          const txt = exportJsonText.value || '';
+          if (!txt) { ElementPlus.ElMessage.warning('尚未生成导出内容'); return; }
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(txt);
+              ElementPlus.ElMessage.success('✅ 已复制到剪贴板。到目标页面点【📥 导入数据】粘贴即可。');
+              return;
+            }
+          } catch (e) { }
+          const ta = document.createElement('textarea');
+          ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+          document.body.appendChild(ta); ta.select();
+          try {
+            document.execCommand('copy');
+            ElementPlus.ElMessage.success('✅ 已复制到剪贴板。到目标页面点【📥 导入数据】粘贴即可。');
+          } catch (e) {
+            ElementPlus.ElMessage.error('复制失败，请手动选中文本复制或改用【下载 JSON 文件】。');
+          }
+          document.body.removeChild(ta);
+        };
+
+        const downloadExportJson = () => {
+          const txt = exportJsonText.value || '';
+          if (!txt) { ElementPlus.ElMessage.warning('尚未生成导出内容'); return; }
+          const blob = new Blob([txt], { type: 'application/json;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const d = new Date();
+          const pad = n => (n < 10 ? '0' : '') + n;
+          const name = `project-metrics-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+          a.href = url; a.download = name;
+          document.body.appendChild(a); a.click();
+          setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 100);
+        };
+
+        const openImport = () => {
+          importJsonText.value = '';
+          importMode.value = 'merge';
+          importVisible.value = true;
+        };
+
+        const confirmImport = () => {
+          let raw;
+          try {
+            raw = JSON.parse(importJsonText.value || '{}');
+          } catch (e) {
+            ElementPlus.ElMessage.error('JSON 解析失败。请确认粘贴的是完整导出内容（以 { 开头）。');
+            return;
+          }
+
+          // 兼容旧版本格式
+          let monitorData = null;
+          let dividendData = null;
+
+          if (raw.version && raw.version >= 8) {
+            // 新版本格式
+            monitorData = raw.monitor?.items;
+            dividendData = raw.dividend;
+          } else if (Array.isArray(raw)) {
+            // 旧版本格式：纯数组
+            monitorData = raw;
+          } else if (raw.items && Array.isArray(raw.items)) {
+            // 旧版本格式：{ items: [...] }
+            monitorData = raw.items;
+          } else {
+            ElementPlus.ElMessage.error('格式不对，无法识别数据类型。');
+            return;
+          }
+
+          let importCount = 0;
+
+          // 导入监控tab数据
+          if (monitorData && Array.isArray(monitorData)) {
+            let parsed = monitorData.map(r => ensureFields(Object.assign({}, r)));
+            if (!parsed.every(r => r && r.fullCode)) {
+              ElementPlus.ElMessage.error('监控数据缺少【编号/名称/fullCode】字段。');
+              return;
+            }
+
+            if (importMode.value === 'replace') {
+              tableData.value = parsed.map(r => reactive(r));
+            } else {
+              const byCode = new Map();
+              tableData.value.forEach(r => byCode.set(r.fullCode, r));
+              parsed.forEach(r => {
+                byCode.set(r.fullCode, reactive(r));
+              });
+              tableData.value = Array.from(byCode.values());
+            }
+            tableData.value.forEach(r => calculateRow(r));
+            importCount += tableData.value.length;
+          }
+
+          // 导入红利tab数据
+          if (dividendData) {
+            if (dividendData.stocks && Array.isArray(dividendData.stocks)) {
+              if (importMode.value === 'replace') {
+                dividendStockList.value = dividendData.stocks.map(item => ({
+                  ...item,
+                  dividendPerShare: item.dividendPerShare || 0
+                }));
+              } else {
+                const byCode = new Map();
+                dividendStockList.value.forEach(s => byCode.set(s.fullCode, s));
+                dividendData.stocks.forEach(item => {
+                  byCode.set(item.fullCode, {
+                    ...item,
+                    dividendPerShare: item.dividendPerShare || 0
+                  });
+                });
+                dividendStockList.value = Array.from(byCode.values());
+              }
+              saveDividendStocksToLocal();
+            }
+
+            if (dividendData.data && Array.isArray(dividendData.data)) {
+              if (importMode.value === 'replace') {
+                dividendTableData.value = dividendData.data.map(item => reactive({
+                  ...item,
+                  dividendPerShare: item.dividendPerShare || 0
+                }));
+              } else {
+                const byCode = new Map();
+                dividendTableData.value.forEach(r => byCode.set(r.fullCode, r));
+                dividendData.data.forEach(item => {
+                  byCode.set(item.fullCode, reactive({
+                    ...item,
+                    dividendPerShare: item.dividendPerShare || 0
+                  }));
+                });
+                dividendTableData.value = Array.from(byCode.values());
+              }
+              // 按股息率降序排序
+              dividendTableData.value.sort((a, b) => {
+                const rateA = a.dividendRate !== null && !isNaN(a.dividendRate) ? a.dividendRate : -Infinity;
+                const rateB = b.dividendRate !== null && !isNaN(b.dividendRate) ? b.dividendRate : -Infinity;
+                return rateB - rateA;
+              });
+              localStorage.setItem('dividend_data_v1', JSON.stringify(dividendTableData.value));
+            }
+          }
+
+          // 重置告警标记
+          alertFlags.value = {};
+          dividendAlertFlags.value = {};
+          saveToLocal();
+          importVisible.value = false;
+
+          ElementPlus.ElMessage.success(`导入成功！监控 ${tableData.value.length} 条，红利 ${dividendTableData.value.length} 条。`);
+
+          // 刷新价格
+          if (tableData.value.length > 0) refreshAllPrices();
+          if (dividendTableData.value.length > 0) refreshDividendData();
+        };
+
+        const saveToLocal = () => {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(tableData.value));
+          localStorage.setItem('alert_flags_v1', JSON.stringify(alertFlags.value));
+        };
+
+        // 增强的代码格式化逻辑
+        const formatCode = (code) => {
+          code = code.trim().toLowerCase();
+          if (!code) return null;
+
+          // 如果已经带了前缀直接返回
+          if (/^(sh|sz|hk|bj|s_sh|s_sz)/.test(code)) return code;
+
+          // 纯数字判断
+          if (/^\d+$/.test(code)) {
+            // 港股判断：1-4位数字，或以0开头的5位数字(如 00700)
+            if (code.length <= 4 || (code.length === 5 && code.startsWith('0'))) {
+              return 'hk' + code.padStart(5, '0');
+            }
+            // A股 & ETF 判断
+            if (code.length === 6) {
+              if (/^(5[168]|6)/.test(code)) return 'sh' + code; // 上海A股或ETF
+              if (/^(1[568]|0|3)/.test(code)) return 'sz' + code; // 深圳A股或ETF
+              if (/^(4|8)/.test(code)) return 'bj' + code; // 北交所
+            }
+          }
+          return code;
+        };
+
+        const fetchData = (codes, isAddition = true) => {
+          if (codes.length === 0) return;
+          loading.value = true;
+          const queryStr = codes.join(',');
+
+          const oldScript = document.getElementById('jsonp-stock');
+          if (oldScript) oldScript.remove();
+
+          const script = document.createElement('script');
+          script.id = 'jsonp-stock';
+          script.src = `https://qt.gtimg.cn/q=${queryStr}`;
+          document.body.appendChild(script);
+
+          script.onload = () => {
+            codes.forEach(code => {
+              const dataStr = window[`v_${code}`];
+              if (dataStr) {
+                const d = dataStr.split('~');
+                const nowPrice = parseFloat(d[3]);
+                const prevClosePrice = parseFloat(d[4]) || 0;
+
+                let turnover = parseFloat(d[37]);
+                let volume = parseFloat(d[36]);
+
+                let newAvg = 0;
+                if (code.startsWith('hk')) {
+                  newAvg = volume > 0 ? turnover / volume : prevClosePrice;
+                } else {
+                  newAvg = volume > 0 ? (turnover * 10000) / (volume * 100) : prevClosePrice;
+                }
+
+                const existingIndex = tableData.value.findIndex(item => item.fullCode === code);
+
+                if (existingIndex > -1) {
+                  const item = tableData.value[existingIndex];
+                  item.now = nowPrice;
+                  item.prevClose = prevClosePrice;
+                  item.avg = parseFloat(newAvg.toFixed(3));
+                  ensureFields(item);
+                  if (nowPrice > (parseFloat(item.maxSinceBuy) || 0)) item.maxSinceBuy = parseFloat(nowPrice.toFixed(3));
+                  calculateRow(item);
+                } else if (isAddition) {
+                  const newItem = reactive({
+                    name: d[1],
+                    fullCode: code,
+                    now: nowPrice,
+                    prevClose: prevClosePrice,
+                    high: parseFloat(d[33]) || nowPrice,
+                    low: parseFloat(d[34]) || nowPrice,
+                    avg: parseFloat(newAvg.toFixed(3)),
+                    f382: 0, f618: 0, f786: 0,
+                    topLine: 0, bottomLine: 0,
+                    buyPrice: 0,
+                    buyDate: '',
+                    adr20: 0,
+                    quantity: 0,
+                    maxSinceBuy: parseFloat(nowPrice.toFixed(3)),
+                    takeProfit: '',
+                    stopLoss: '',
+                    pnlAmount: '', pnlPct: '',
+                    toTPPct: '', toSLPct: '',
+                    _toTPNum: 0, _toSLNum: 0
+                  });
+                  calculateRow(newItem);
+                  tableData.value.unshift(newItem);
+                }
+              }
+            });
+            loading.value = false;
+            saveToLocal();
+            if (isAddition) inputCodes.value = "";
+            checkAllAlerts();
+          };
+        };
+
+        const addNewCodes = () => {
+          const codes = inputCodes.value.split(/[,\s\n]/).map(c => formatCode(c)).filter(c => c);
+          if (codes.length > 0) fetchData(codes, true);
+        };
+
+        const refreshAllPrices = () => {
+          const currentCodes = tableData.value.map(item => item.fullCode);
+          if (currentCodes.length > 0) {
+            fetchData(currentCodes, false);
+          }
+        };
+
+        const calculateRow = (row) => {
+          const diff = row.high - row.low;
+          const K = 0.98848;
+          row.f382 = (row.high - diff * 0.382).toFixed(3);
+          row.f618 = (row.high - diff * 0.618).toFixed(3);
+          row.f786 = (row.high - diff * 0.786).toFixed(3);
+          if (row.avg > 0) {
+            row.topLine = (row.avg / K).toFixed(3);
+            row.bottomLine = (row.avg * K).toFixed(3);
+          }
+          const buy = parseFloat(row.buyPrice);
+          const adr = parseFloat(row.adr20);
+          const now = parseFloat(row.now) || 0;
+          const qty = parseInt(row.quantity) || 0;
+
+          if (buy > 0 && adr > 0) {
+            const maxSince = Math.max(parseFloat(row.maxSinceBuy) || 0, now, buy);
+            row.maxSinceBuy = parseFloat(maxSince.toFixed(3));
+            const initialTP = buy + 2 * adr;
+            if (maxSince >= initialTP) {
+              const trailingTP = maxSince - 1 * adr;
+              row.takeProfit = Math.max(initialTP, trailingTP).toFixed(3);
+            } else {
+              row.takeProfit = initialTP.toFixed(3);
+            }
+            let slVal = buy - 2 * adr;
+            if (maxSince >= buy + 1.5 * adr) {
+              slVal = Math.max(slVal, buy);
+            }
+            row.stopLoss = slVal.toFixed(3);
+          } else {
+            row.takeProfit = '';
+            row.stopLoss = '';
+          }
+
+          if (buy > 0 && now > 0) {
+            const pnlPerShare = now - buy;
+            const pnlPerShareAmt = qty > 0 ? pnlPerShare * qty : pnlPerShare;
+            const pnlPerPct = (pnlPerShare / buy) * 100;
+            const signPnl = pnlPerShare > 0 ? '+' : '';
+            if (qty > 0) {
+              row.pnlAmount = `${signPnl}${pnlPerShareAmt.toFixed(2)}`;
+            } else {
+              row.pnlAmount = `${signPnl}${pnlPerShareAmt.toFixed(3)}`;
+            }
+            row.pnlPct = `${signPnl}${pnlPerPct.toFixed(2)}%`;
+          } else {
+            row.pnlAmount = '';
+            row.pnlPct = '';
+          }
+
+          if (buy > 0 && adr > 0) {
+            const tp = parseFloat(row.takeProfit);
+            const sl = parseFloat(row.stopLoss);
+            if (now > 0 && tp > 0) {
+              const toTP = ((tp - now) / now) * 100;
+              row._toTPNum = toTP;
+              const tSign = toTP > 0 ? '+' : '';
+              row.toTPPct = `距止盈 ${tSign}${toTP.toFixed(2)}%`;
+            } else {
+              row.toTPPct = '';
+              row._toTPNum = 0;
+            }
+            if (now > 0 && sl > 0) {
+              const toSL = ((sl - now) / now) * 100;
+              row._toSLNum = toSL;
+              const sSign = toSL > 0 ? '+' : '';
+              row.toSLPct = `距止损 ${sSign}${toSL.toFixed(2)}%`;
+            } else {
+              row.toSLPct = '';
+              row._toSLNum = 0;
+            }
+          } else {
+            row.toTPPct = '';
+            row.toSLPct = '';
+            row._toTPNum = 0;
+            row._toSLNum = 0;
+          }
+          saveToLocal();
+        };
+
+        const removeItem = (index) => {
+          tableData.value.splice(index, 1);
+          saveToLocal();
+        };
+
+        const clearAll = () => {
+          ElementPlus.ElMessageBox.confirm('确定清空所有数据吗？').then(() => {
+            tableData.value = [];
+            saveToLocal();
+          });
+        };
+
+        return {
+          inputCodes, tableData, loading,
+          cfgVisible, cfgRow, cfgChanged,
+          isFileProtocol,
+          exportVisible, importVisible, exportJsonText, importJsonText, importMode,
+          autoRefresh, autoCountdown,
+          activeTab,
+          dividendInputCodes, dividendStockList,
+          dividendTableData, dividendLoading, autoDividendRefresh, dividendCountdown,
+          dividendThresholds, currentDividendRate, maxDividendRate,
+          addNewCodes, refreshAllPrices, calculateRow, removeItem, clearAll,
+          tableRowClassName, getMarket, getMarketLabel,
+          getChgClass, formatChg, getPnlClass,
+          openCfg, saveCfg,
+          toggleAutoRefresh, testNotify,
+          selectedVoice, chineseVoices,
+          openExport, copyExportToClipboard, downloadExportJson,
+          openImport, confirmImport,
+          hasAlert,
+          getDividendColor, getDividendClass, getDividendEmoji,
+          getDividendChgClass, formatDividendChg, isDividendRateReached,
+          getThresholdCount, hasDividendAlert,
+          addDividendCodes, refreshDividendData, toggleAutoDividendRefresh, removeDividendItem,
+          onUpdateDividendPerShare
+        };
+      }
+    }).use(ElementPlus).mount('#app');
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,499 @@
+body {
+  background-color: #f0f2f5;
+  margin: 0;
+  padding: 12px;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  height: 100vh;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.header-box {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #ebeef5;
+  padding-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding-top: 4px;
+}
+
+.header-actions .el-button {
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.header-box h2 {
+  margin: 0;
+  color: #606266;
+  font-size: 20px;
+}
+
+.header-box p {
+  margin: 5px 0 0;
+  font-size: 13px;
+  color: #909399;
+}
+
+.toolbar {
+  flex-shrink: 0;
+  margin-bottom: 15px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px;
+  background: #f5f7fa;
+  border-radius: 8px;
+}
+
+.toolbar .el-input {
+  flex: 1;
+}
+
+.toolbar-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.toolbar-buttons .button-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.toolbar-buttons .el-button {
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.toolbar-buttons .el-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* el-tabs 内容区域滚动支持 */
+.el-tabs__content {
+  flex: 1;
+  overflow: hidden;
+}
+
+.el-tab-pane {
+  height: 100%;
+}
+
+.table-wrapper {
+  flex: 1;
+  overflow: hidden;
+}
+
+.table-wrapper .el-table {
+  height: 100% !important;
+}
+
+.el-table .warning-row td.el-table__cell {
+  background-color: #fdf6ec !important;
+  color: #b88230 !important;
+}
+
+.el-table .danger-row td.el-table__cell {
+  background-color: #faecd8 !important;
+  color: #a06a1d !important;
+}
+
+.el-table .stoploss-row td.el-table__cell {
+  background-color: #fdf6ec !important;
+  color: #b88230 !important;
+  font-weight: 600;
+}
+
+.el-table .takeprofit-row td.el-table__cell {
+  background-color: #ecf5ff !important;
+  color: #409eff !important;
+  font-weight: 600;
+}
+
+.up-text {
+  color: #409eff;
+  font-weight: 600;
+}
+
+.down-text {
+  color: #909399;
+}
+
+.alert-text {
+  color: #e6a23c;
+  font-weight: 600;
+}
+
+.fib-val {
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+}
+
+.price-now {
+  font-weight: 700;
+  font-size: 15px;
+  color: #303133;
+}
+
+.market-tag {
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 3px;
+  margin-right: 4px;
+}
+
+.tag-sh {
+  background: #ecf5ff;
+  color: #409eff;
+  border: 1px solid #d9ecff;
+}
+
+.tag-sz {
+  background: #f4f4f5;
+  color: #606266;
+  border: 1px solid #e9e9eb;
+}
+
+.tag-hk {
+  background: #f0f9eb;
+  color: #67c23a;
+  border: 1px solid #c2e7b0;
+}
+
+.tag-other {
+  background: #f4f4f5;
+  color: #909399;
+  border: 1px solid #e9e9eb;
+}
+
+.sub-line {
+  font-size: 11px;
+  font-family: 'Monaco', 'Consolas', monospace;
+  color: #909399;
+}
+
+.cfg-btn {
+  padding: 2px 4px;
+}
+
+@keyframes flash-blue {
+
+  0%,
+  100% {
+    background-color: transparent;
+  }
+
+  50% {
+    background-color: #d9ecff;
+    border-radius: 3px;
+    box-shadow: 0 0 0 2px #409eff inset;
+  }
+}
+
+@keyframes flash-orange {
+
+  0%,
+  100% {
+    background-color: transparent;
+  }
+
+  50% {
+    background-color: #faecd8;
+    border-radius: 3px;
+    box-shadow: 0 0 0 2px #e6a23c inset;
+  }
+}
+
+@keyframes flash-gold {
+
+  0%,
+  100% {
+    background-color: transparent;
+  }
+
+  50% {
+    background-color: #fff4d6;
+    border-radius: 3px;
+    box-shadow: 0 0 0 2px #c9a400 inset;
+  }
+}
+
+@keyframes flash-red {
+
+  0%,
+  100% {
+    background-color: transparent;
+  }
+
+  50% {
+    background-color: #fde2e2;
+    border-radius: 3px;
+    box-shadow: 0 0 0 2px #f56c6c inset;
+  }
+}
+
+.flash-tp {
+  animation: flash-blue 1.2s ease-in-out infinite;
+  padding: 1px 3px;
+  display: inline-block;
+}
+
+.flash-sl {
+  animation: flash-orange 1.0s ease-in-out infinite;
+  padding: 1px 3px;
+  display: inline-block;
+}
+
+.flash-l3 {
+  animation: flash-gold 1.4s ease-in-out infinite;
+  padding: 1px 2px;
+  display: inline-block;
+}
+
+.flash-l2 {
+  animation: flash-orange 1.6s ease-in-out infinite;
+  padding: 1px 2px;
+  display: inline-block;
+}
+
+.flash-top {
+  animation: flash-blue 1.4s ease-in-out infinite;
+  padding: 1px 2px;
+  display: inline-block;
+}
+
+.flash-bot {
+  animation: flash-red 1.2s ease-in-out infinite;
+  padding: 1px 2px;
+  display: inline-block;
+}
+
+.flash-now-sl {
+  animation: flash-orange 0.9s ease-in-out infinite;
+  padding: 1px 4px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.flash-now-tp {
+  animation: flash-blue 0.9s ease-in-out infinite;
+  padding: 1px 4px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.flash-dividend-rate {
+  animation: flash-highlight 1s ease-in-out infinite;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  font-weight: 600;
+}
+
+@keyframes flash-highlight {
+
+  0%,
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+
+  50% {
+    background-color: rgba(255, 215, 0, 0.3);
+    box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+  }
+}
+
+.dividend-progress-container {
+  padding: 10px 0;
+}
+
+.dividend-progress-track {
+  position: relative;
+  height: 24px;
+  background: #f5f7fa;
+  border-radius: 12px;
+  overflow: visible;
+}
+
+.dividend-progress-bar {
+  height: 100%;
+  border-radius: 12px;
+  transition: width 0.5s ease, background-color 0.3s;
+}
+
+.dividend-progress-bar-item {
+  position: absolute;
+  height: 100%;
+  border-radius: 12px;
+  transition: width 0.5s ease, background-color 0.3s;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.dividend-marks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+}
+
+.dividend-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #e6a23c;
+  transform: translateX(-50%);
+}
+
+.dividend-mark::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 6px solid #e6a23c;
+}
+
+.mark-label {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #e6a23c;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.threshold-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.threshold-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  margin-bottom: 8px;
+}
+
+.threshold-dot.dot-green {
+  background: #67c23a;
+}
+
+.threshold-dot.dot-yellow {
+  background: #e6a23c;
+}
+
+.threshold-dot.dot-orange {
+  background: #f56c6c;
+}
+
+.threshold-dot.dot-red {
+  background: #409eff;
+}
+
+.threshold-label {
+  font-size: 12px;
+  color: #606266;
+  margin-bottom: 4px;
+}
+
+.threshold-count {
+  font-size: 18px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.dividend-rate {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.dividend-rate.rate-green {
+  color: #67c23a;
+  background: #f0f9eb;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.dividend-rate.rate-yellow {
+  color: #e6a23c;
+  background: #fdf6ec;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.dividend-rate.rate-orange {
+  color: #f56c6c;
+  background: #fef0f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.dividend-rate.rate-blue {
+  color: #409eff;
+  background: #ecf5ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+@keyframes flash-dividend {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.flash-dividend {
+  animation: flash-dividend 1.2s ease-in-out infinite;
+  color: #e6a23c;
+  font-weight: 600;
+  font-size: 12px;
+}
