@@ -82,8 +82,32 @@
   @apply text-xs px-1.5 py-0.5 rounded;
 }
 
+/* 浅色模式标签 */
 .tag-sh { background: #ecf5ff; color: #409eff; }
 .tag-sz { background: #fef0f0; color: #f56c6c; }
 .tag-hk { background: #f0f9eb; color: #67c23a; }
 .tag-bj { background: #fdf6ec; color: #e6a23c; }
 .tag-other { background: #f4f4f5; color: #909399; }
+
+/* 深色模式标签 */
+.dark .tag-sh { background: rgba(64, 158, 255, 0.2); color: #79bbff; }
+.dark .tag-sz { background: rgba(245, 108, 108, 0.2); color: #f89898; }
+.dark .tag-hk { background: rgba(103, 194, 58, 0.2); color: #95d475; }
+.dark .tag-bj { background: rgba(230, 162, 60, 0.2); color: #ebb563; }
+.dark .tag-other { background: rgba(144, 147, 153, 0.2); color: #b1b3b8; }
+
+/* 深色模式展开行卡片 */
+.dark .bg-gradient-to-r.from-blue-50 {
+  background: linear-gradient(to right, rgba(59, 130, 246, 0.1), transparent);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.dark .bg-gradient-to-r.from-green-50 {
+  background: linear-gradient(to right, rgba(34, 197, 94, 0.1), transparent);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+/* 深色模式文字颜色调整 */
+.dark .text-slate-500 { color: rgb(148 163 184); }
+.dark .text-slate-400 { color: rgb(203 213 225); }
+.dark .text-slate-300 { color: rgb(226 232 240); }
