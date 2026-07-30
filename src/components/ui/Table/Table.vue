@@ -28,7 +28,7 @@ provide('table', {
 </script>
 
 <template>
-  <div class="relative w-full overflow-auto">
+  <div class="relative w-full">
     <table :class="cn('w-full caption-bottom text-sm', props.class)">
       <slot />
     </table>
