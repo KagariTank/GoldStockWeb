@@ -22,7 +22,7 @@
     </div>
 
     <!-- Table -->
-    <div class="border rounded-lg overflow-auto flex-1" style="max-height: calc(100vh - 200px);">
+    <div class="border rounded-lg overflow-auto flex-1">
       <Table :data="tableData" :loading="loading">
         <TableHeader>
           <TableRow>

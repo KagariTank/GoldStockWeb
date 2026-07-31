@@ -17,7 +17,7 @@ const activeTab = computed({
 </script>
 
 <template>
-  <div :class="cn('w-full', props.class)">
+  <div :class="cn('w-full flex flex-col overflow-hidden', props.class)">
     <div class="flex border-b">
       <button
         v-for="tab in tabs"
@@ -33,7 +33,7 @@ const activeTab = computed({
         {{ tab.label }}
       </button>
     </div>
-    <div class="mt-4">
+    <div class="mt-4 flex-1 overflow-hidden">
       <slot :activeTab="activeTab" />
     </div>
   </div>

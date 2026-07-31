@@ -291,8 +291,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-background">
-    <div class="max-w-full mx-auto p-4">
+  <div class="h-screen bg-background">
+    <div class="max-w-full h-full mx-auto p-4 flex flex-col">
       <!-- Header -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
         <div>
@@ -345,7 +345,7 @@ onMounted(() => {
       </div>
 
       <!-- Tabs -->
-      <Tabs :tabs="tabOptions" v-model="activeTab">
+      <Tabs :tabs="tabOptions" v-model="activeTab" class="flex-1">
         <template #default="{ activeTab }">
           <!-- Monitor Tab -->
           <MonitorTab v-if="activeTab === 'monitor'" />

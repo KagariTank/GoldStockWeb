@@ -21,7 +21,7 @@
     </div>
 
     <!-- Table -->
-    <div class="border rounded-lg overflow-auto" style="max-height: 50vh;">
+    <div class="border rounded-lg overflow-auto">
       <Table :data="dividendTableData" :loading="dividendLoading">
         <TableHeader>
           <TableRow>
