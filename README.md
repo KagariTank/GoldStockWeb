@@ -2,14 +2,27 @@
 
 **外观伪装为普通项目看板**，上班友好。底层是 A 股 / 港股 / ETF 多标的同时监控面板，集成黄金分割买点测算、ADR(20) 波动系数、阶梯止盈、保本止损、四层语音告警等完整看盘工具链。
 
-单文件 HTML，双击即开，数据存浏览器 LocalStorage，无需后端。
+采用现代化Vite + Vue 3架构，数据存浏览器 LocalStorage，无需后端。
 
 ---
 
 ## 一、快速开始
 
+### 方式一：本地开发（推荐）
+```bash
+# 安装依赖
+pnpm install
+
+# 启动开发服务器
+pnpm dev
+
+# 构建生产版本
+pnpm build
 ```
-直接双击打开 gold.html
+
+### 方式二：直接访问
+```
+直接打开 index.html
 推荐用 Chrome / Edge / Firefox，Safari 也可。
 ```
 
@@ -26,7 +39,47 @@
 
 ---
 
-## 二、主界面列说明（伪装风格）
+## 二、技术架构
+
+### 技术栈
+- **框架**: Vue 3 + Vite
+- **样式**: Tailwind CSS
+- **状态管理**: Vue Composition API (Composables)
+- **数据存储**: LocalStorage
+- **语音**: Web Speech Synthesis API
+- **通知**: Web Notifications API
+
+### 项目结构
+```
+src/
+├── components/          # Vue组件
+│   ├── ui/              # UI组件库
+│   ├── MonitorTab.vue   # 指标监控标签页
+│   └── DividendTab.vue  # 股息监控标签页
+├── composables/         # 组合式函数（单例模式）
+│   ├── useMonitorData.js    # 指标监控数据管理
+│   ├── useDividendData.js   # 股息监控数据管理
+│   └── useTheme.js          # 主题管理
+├── js/                  # 工具库
+│   ├── utils.js         # 计算工具函数
+│   ├── notify.js        # 通知和语音服务
+│   ├── dividend.js      # 股息计算
+│   └── toast.js         # 提示消息
+├── App.vue              # 根组件
+├── main.js              # 入口文件
+└── style.css            # 全局样式
+```
+
+### 核心特性
+- ✅ **单例模式**: 确保所有组件共享同一份数据
+- ✅ **响应式设计**: 数据自动同步，无需手动管理
+- ✅ **模块化**: 代码职责清晰，易于维护和扩展
+- ✅ **本地存储**: 数据持久化到浏览器，无需后端
+- ✅ **告警去重**: 智能去重机制，避免重复通知
+
+---
+
+## 三、主界面列说明（伪装风格）
 
 | 列名（办公面） | 实际含义 |
 |---|---|
