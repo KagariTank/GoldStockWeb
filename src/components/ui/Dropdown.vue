@@ -44,7 +44,7 @@ onMounted(() => {
     </slot>
     
     <Transition name="dropdown">
-      <div v-if="isOpen" :class="cn('absolute z-50 mt-1 min-w-[160px] rounded-md border bg-background shadow-lg', props.class)">
+      <div v-if="isOpen" :class="cn('absolute z-50 mt-1 min-w-[280px] rounded-md border bg-background shadow-lg', props.class)">
         <div class="p-1">
           <slot :selectItem="selectItem" :close="close">
             <button
