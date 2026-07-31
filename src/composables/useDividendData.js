@@ -25,7 +25,10 @@ try {
 // Selected voice
 const selectedVoice = ref('')
 
-// Methods
+// ===== 单例初始化标记 =====
+let _dividendInitialized = false
+
+// ===== 方法定义 =====
 const saveDividendStocksToLocal = () => {
   localStorage.setItem('dividend_stocks_v1', JSON.stringify(dividendStockList.value))
 }
@@ -210,8 +213,11 @@ const onUpdateDividendPerShareHandler = (row) => {
   checkDividendAlerts(dividendTableData.value, dividendAlertFlags.value, (title, body, level) => fireNotify(title, body, level, isFileProtocol.value, selectedVoice), selectedVoice)
 }
 
-// Lifecycle
-onMounted(() => {
+// ===== 初始化函数（只执行一次） =====
+const initializeDividendOnce = () => {
+  if (_dividendInitialized) return
+  _dividendInitialized = true
+
   // Restore dividend stocks
   const cachedDividendStocks = localStorage.getItem('dividend_stocks_v1')
   if (cachedDividendStocks) {
@@ -246,14 +252,12 @@ onMounted(() => {
       }
     } catch (e) {}
   }
-})
-
-onBeforeUnmount(() => {
-  if (_dividendTimer.value) clearInterval(_dividendTimer.value)
-  if (_dividendCountdownTimer.value) clearInterval(_dividendCountdownTimer.value)
-})
+}
 
 export function useDividendData(voiceRef) {
+  // 确保只初始化一次
+  initializeDividendOnce()
+
   // Update selected voice if provided
   if (voiceRef && voiceRef.value) {
     selectedVoice.value = voiceRef.value

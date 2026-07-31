@@ -2,7 +2,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { formatCode, ensureFields, calculateRow } from '@/js/utils.js'
 import { initAudio, fireNotify, speakAlert } from '@/js/notify.js'
 
-// State
+// ===== 单例状态（所有组件共享） =====
 const STORAGE_KEY = 'phi_batch_table_v7'
 const inputCodes = ref('')
 const tableData = ref([])
@@ -46,7 +46,10 @@ try {
 // Selected voice
 const selectedVoice = ref('')
 
-// Methods
+// ===== 单例初始化标记 =====
+let _initialized = false
+
+// ===== 方法定义 =====
 const saveToLocal = () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tableData.value))
   localStorage.setItem('alert_flags_v1', JSON.stringify(alertFlags.value))
@@ -398,8 +401,11 @@ const toggleRowExpand = (row) => {
 
 const isRowExpanded = (row) => expandedRows.value.has(row.fullCode)
 
-// Lifecycle
-onMounted(() => {
+// ===== 初始化函数（只执行一次） =====
+const initializeOnce = () => {
+  if (_initialized) return
+  _initialized = true
+
   // Restore alert flags
   const cachedFlags = localStorage.getItem('alert_flags_v1')
   if (cachedFlags) {
@@ -413,14 +419,12 @@ onMounted(() => {
     refreshAllPrices()
     tableData.value.forEach(r => calculateRow(r, saveToLocal))
   }
-})
-
-onBeforeUnmount(() => {
-  if (_autoTimer.value) clearInterval(_autoTimer.value)
-  if (_countdownTimer.value) clearInterval(_countdownTimer.value)
-})
+}
 
 export function useMonitorData(voiceRef) {
+  // 确保只初始化一次
+  initializeOnce()
+
   // Update selected voice if provided
   if (voiceRef && voiceRef.value) {
     selectedVoice.value = voiceRef.value
