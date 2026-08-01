@@ -27,7 +27,7 @@
           <TableRow>
             <TableHead label="股票名称" class="min-w-[120px]" />
             <TableHead label="当前价格" class="w-[120px]" />
-            <TableHead label="每股股息" class="w-[130px]" />
+            <TableHead label="每10股股息" class="w-[130px]" />
             <TableHead label="股息率" class="w-[100px]" />
             <TableHead label="4%价" class="w-[90px]" />
             <TableHead label="4.5%价" class="w-[90px]" />

@@ -96,7 +96,7 @@ export function formatDividendChg(row) {
 }
 
 export function calcDividendFields(row) {
-  const dps = parseFloat(row.dividendPerShare) || 0;
+  const dps = (parseFloat(row.dividendPerShare) || 0) / 10;
   const price = parseFloat(row.price) || 0;
   if (dps > 0 && price > 0) {
     row.dividendRate = parseFloat(((dps / price) * 100).toFixed(2));
