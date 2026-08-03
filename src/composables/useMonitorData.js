@@ -235,7 +235,7 @@ const fetchData = (codes, isAddition = true) => {
     saveToLocal()
     if (isAddition) inputCodes.value = ""
     // 刷新数据时总是检查告警（skipNotify只在首次加载时为true）
-    checkAllAlerts(!_alertInitialized || !isAddition)
+    checkAllAlerts(!_alertInitialized)
     _alertInitialized = true
   }
 }
