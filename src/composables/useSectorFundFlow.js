@@ -162,10 +162,15 @@ async function fetchData() {
   loading.value = true
   try {
     const code = sectorCodeMap[sectorType.value] || sectorCodeMap.industry
-    // dev 环境走 vite 代理避免 CORS，生产环境直连
+    // dev 环境走 vite 代理避免 CORS，生产环境走 cors 代理
     const isDev = import.meta.env.DEV
-    const base = isDev ? '/em-api' : 'https://data.eastmoney.com'
-    const url = `${base}/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(code)}`
+    const originPath = `/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(code)}`
+    let url
+    if (isDev) {
+      url = `/em-api${originPath}`
+    } else {
+      url = `https://corsproxy.io/?url=${encodeURIComponent('https://data.eastmoney.com' + originPath)}`
+    }
     const res = await fetch(url)
     const json = await res.json()
     const diff = json?.data?.diff || []
