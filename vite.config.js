@@ -12,5 +12,14 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src')
     }
   },
-  base: repoName ? `/${repoName}/` : '/'
+  base: repoName ? `/${repoName}/` : '/',
+  server: {
+    proxy: {
+      '/em-api': {
+        target: 'https://data.eastmoney.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/em-api/, '')
+      }
+    }
+  }
 })

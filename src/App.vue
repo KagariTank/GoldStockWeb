@@ -9,6 +9,7 @@ import Dropdown from '@/components/ui/Dropdown.vue'
 import Tabs from '@/components/ui/Tabs.vue'
 import MonitorTab from '@/components/MonitorTab.vue'
 import DividendTab from '@/components/DividendTab.vue'
+import SectorFundFlowTab from '@/components/SectorFundFlowTab.vue'
 
 import { ensureFields, calculateRow } from '@/js/utils.js'
 import { initVoices, testNotify, clearAllNotifications } from '@/js/notify.js'
@@ -38,7 +39,8 @@ try {
 // Tab options
 const tabOptions = [
   { label: '指标监控', value: 'monitor' },
-  { label: '红利股息监控', value: 'dividend' }
+  { label: '红利股息监控', value: 'dividend' },
+  { label: '板块资金流向', value: 'fundflow' }
 ]
 
 // Use monitor data composable (for import/export)
@@ -352,6 +354,9 @@ onMounted(() => {
 
           <!-- Dividend Tab -->
           <DividendTab v-if="activeTab === 'dividend'" />
+
+          <!-- Sector Fund Flow Tab -->
+          <SectorFundFlowTab v-if="activeTab === 'fundflow'" />
         </template>
       </Tabs>
 
