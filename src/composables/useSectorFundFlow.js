@@ -164,7 +164,8 @@ async function fetchData() {
     const code = sectorCodeMap[sectorType.value] || sectorCodeMap.industry
     // dev 环境走 vite 代理避免 CORS，生产环境走 cors 代理
     const isDev = import.meta.env.DEV
-    const originPath = `/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(code)}`
+    // 加时间戳防止浏览器缓存 GET 请求
+    const originPath = `/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(code)}&_t=${Date.now()}`
     let url
     if (isDev) {
       url = `/em-api${originPath}`
