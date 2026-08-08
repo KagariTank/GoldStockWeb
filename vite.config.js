@@ -19,6 +19,11 @@ export default defineConfig({
         target: 'https://data.eastmoney.com',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/em-api/, '')
+      },
+      '/hsd-api': {
+        target: 'https://dq.10jqka.com.cn',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/hsd-api/, '')
       }
     }
   }
