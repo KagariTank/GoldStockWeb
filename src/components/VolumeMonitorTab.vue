@@ -78,6 +78,14 @@
       <div ref="chartRef" class="w-full" style="height: 380px"></div>
     </div>
 
+    <!-- ECharts 差额柱状图 -->
+    <div v-if="minuteData.length > 0" class="border rounded-lg mb-4 p-2">
+      <div class="px-2 mb-2">
+        <span class="text-sm font-medium">成交额差额 — 今日减昨日（红=放量，绿=缩量）</span>
+      </div>
+      <div ref="diffChartRef" class="w-full" style="height: 280px"></div>
+    </div>
+
     <!-- 分钟级数据表格 -->
     <div v-if="minuteData.length > 0" class="border rounded-lg overflow-auto flex-1" style="max-height: 300px">
       <Table :data="reversedMinuteData" :loading="loading">
@@ -252,6 +260,90 @@ function updateChart() {
   if (opt) chart.setOption(opt, { notMerge: true })
 }
 
+// ===== 差额柱状图 =====
+const diffChartRef = ref(null)
+let diffChart = null
+
+const diffChartOption = computed(() => {
+  const data = minuteData.value
+  if (data.length === 0) return null
+
+  const times = data.map(d => d.time)
+  const diffs = data.map(d => +((d.todayVol - d.yestVol) / 1e8).toFixed(2))
+
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: 'rgba(50, 50, 50, 0.9)',
+      borderWidth: 0,
+      textStyle: { color: '#fff', fontSize: 12 },
+      padding: [8, 12],
+      formatter: (params) => {
+        const p = params[0]
+        const sign = p.value >= 0 ? '+' : ''
+        const color = p.value >= 0 ? '#ff6b6b' : '#26de81'
+        const label = p.value >= 0 ? '放量' : '缩量'
+        return `<div style="font-weight:600;margin-bottom:4px">${p.axisValue}</div>
+                <div>差额: <span style="font-weight:700;color:${color}">${sign}${p.value}亿</span>（${label}）</div>`
+      }
+    },
+    grid: { left: 60, right: 25, top: 15, bottom: 30 },
+    xAxis: {
+      type: 'category',
+      data: times,
+      axisLabel: {
+        fontSize: 11,
+        color: '#888',
+        interval: Math.floor(data.length / 12)
+      },
+      axisLine: { lineStyle: { color: '#ccc' } },
+      axisTick: { show: false }
+    },
+    yAxis: {
+      type: 'value',
+      name: '亿元',
+      nameTextStyle: { fontSize: 13, color: '#444' },
+      axisLabel: { fontSize: 13, color: '#444' },
+      splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }
+    },
+    series: [{
+      type: 'bar',
+      data: diffs.map(v => ({
+        value: v,
+        itemStyle: {
+          color: v >= 0
+            ? new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: '#ff6b6b' },
+                { offset: 1, color: '#ee5a52' }
+              ])
+            : new echarts.graphic.LinearGradient(0, 1, 0, 0, [
+                { offset: 0, color: '#26de81' },
+                { offset: 1, color: '#20bf6b' }
+              ]),
+          borderRadius: v >= 0 ? [0, 0, 3, 3] : [3, 3, 0, 0]
+        }
+      })),
+      barWidth: '60%',
+      markLine: {
+        silent: true,
+        symbol: 'none',
+        lineStyle: { color: '#ccc', type: 'solid', width: 1 },
+        data: [{ yAxis: 0 }],
+        label: { show: false }
+      },
+      animationDuration: 600,
+      animationEasing: 'cubicOut'
+    }]
+  }
+})
+
+function updateDiffChart() {
+  if (!diffChart) return
+  const opt = diffChartOption.value
+  if (opt) diffChart.setOption(opt, { notMerge: true })
+}
+
 watch(chartOption, () => {
   nextTick(() => {
     if (!chart && chartRef.value) {
@@ -262,10 +354,22 @@ watch(chartOption, () => {
   })
 }, { deep: true })
 
+watch(diffChartOption, () => {
+  nextTick(() => {
+    if (!diffChart && diffChartRef.value) {
+      diffChart = echarts.init(diffChartRef.value)
+    }
+    updateDiffChart()
+  })
+}, { deep: true })
+
 onMounted(() => {
   if (chartRef.value) {
     chart = echarts.init(chartRef.value)
     window.addEventListener('resize', handleResize)
+  }
+  if (diffChartRef.value) {
+    diffChart = echarts.init(diffChartRef.value)
   }
 })
 
@@ -275,10 +379,15 @@ onBeforeUnmount(() => {
     chart.dispose()
     chart = null
   }
+  if (diffChart) {
+    diffChart.dispose()
+    diffChart = null
+  }
 })
 
 function handleResize() {
   chart?.resize()
+  diffChart?.resize()
 }
 
 // 首次加载
