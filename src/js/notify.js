@@ -326,31 +326,40 @@ function processNextSpeech(selectedVoice) {
 export function speakAlert(title, body, level, selectedVoice) {
   initAudio();
 
+  // 先触发一次 beep 作为最小保证（即使语音合成失败也能听到）
+  // 低级别(1)先不响，避免持续报警；中高级别一定响
+  try {
+    playBeep(level || 2);
+  } catch (e) { }
+
   try {
     if ('speechSynthesis' in window) {
-      const cleanText = (title + '。' + body).replace(/[⚠️✅📈📉🔻🟠🔔📋]+/g, '').replace(/\s+/g, ' ').trim();
-      if (!cleanText) {
-        playBeep(level);
-        return;
+      // 强制唤醒：某些浏览器（尤其 Mac/Safari）speechSynthesis 会因为长时间未使用而挂起
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) { }
+
+      const cleanText = (title + '。' + body).replace(/[⚠️✅📈📉🔻🟠🔔📋🔥⚠️💧🚀📊📉📈]+/g, '').replace(/\s+/g, ' ').trim();
+      if (!cleanText) return;
+
+      // 重置可能卡死的语音总线（某些情况下 _speechBusy 会一直卡在 true）
+      if (_speechBusy) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (e) { }
+        _speechBusy = false;
       }
 
-      // 添加到队列
-      _speechQueue.push({ text: cleanText, level });
+      // 添加到队列（仅保留最近 5 条，避免告警风暴）
+      _speechQueue.push({ text: cleanText, level: level || 2 });
+      if (_speechQueue.length > 5) _speechQueue.shift();
 
-      // 如果队列过长，移除旧的（避免内存泄漏）
-      if (_speechQueue.length > 10) {
-        _speechQueue.shift();
-      }
-
-      // 开始处理队列
       processNextSpeech(selectedVoice);
       return;
     }
   } catch (e) {
     console.error('语音合成失败:', e);
   }
-
-  playBeep(level);
 }
 
 export function testNotify(isFileProtocol, selectedVoice) {

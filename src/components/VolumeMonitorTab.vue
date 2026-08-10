@@ -32,22 +32,23 @@
       <div v-if="showRules" class="border rounded-lg mb-4 p-4 bg-muted/30 text-sm space-y-2">
         <div class="font-medium mb-2">量能监控告警规则（自动刷新时检测，同类告警 3 分钟内不重复）</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-muted-foreground">
-          <div>📉 <span class="text-foreground font-medium">缩量趋势</span>　近5分钟均量较昨日同期 &lt; 70%</div>
-          <div>📈 <span class="text-foreground font-medium">放量趋势</span>　近5分钟均量较昨日同期 &gt; 130%</div>
-          <div>⚠️ <span class="text-foreground font-medium">持续缩量</span>　较昨日同期 &lt; 50%</div>
-          <div>🔥 <span class="text-foreground font-medium">持续放量</span>　较昨日同期 &gt; 200%</div>
+          <div>📉 <span class="text-foreground font-medium">缩量趋势</span>　近5分钟均量为昨日同期 50%-70%</div>
+          <div>📈 <span class="text-foreground font-medium">放量趋势</span>　近5分钟均量为昨日同期 130%-200%</div>
+          <div>⚠️ <span class="text-foreground font-medium">持续极端缩量</span>　近5分钟均量 < 昨日同期 50%</div>
+          <div>🔥 <span class="text-foreground font-medium">持续极端放量</span>　近5分钟均量 > 昨日同期 200%</div>
         </div>
-        <div class="font-medium mt-3 mb-2">累计差额告警（红=放量，绿=缩量）</div>
+        <div class="font-medium mt-3 mb-2">累计差额告警（基于比率，红=放量，绿=缩量）</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-muted-foreground">
-          <div>📈 <span class="text-foreground font-medium">绿转红</span>　累计差额由负转正（缩量转放量）</div>
-          <div>📉 <span class="text-foreground font-medium">红转绿</span>　累计差额由正转负（放量转缩量）</div>
-          <div>🚀 <span class="text-foreground font-medium">放量加速</span>　累计放量差额增长超20%</div>
-          <div>⚠️ <span class="text-foreground font-medium">缩量加速</span>　累计缩量差额扩大超20%</div>
-          <div>📉 <span class="text-foreground font-medium">放量减弱</span>　红色柱子持续降低（资金流入放缓）</div>
-          <div>📈 <span class="text-foreground font-medium">缩量减弱</span>　绿色柱子持续收窄（资金流出放缓）</div>
-          <div>🔥 <span class="text-foreground font-medium">极端放量</span>　累计放量差额超3亿</div>
-          <div>💧 <span class="text-foreground font-medium">极端缩量</span>　累计缩量差额超3亿</div>
+          <div>📈 <span class="text-foreground font-medium">绿转红</span>　累计比率由 <1 转为 >1（缩量转放量）</div>
+          <div>📉 <span class="text-foreground font-medium">红转绿</span>　累计比率由 >1 转为 <1（放量转缩量）</div>
+          <div>🚀 <span class="text-foreground font-medium">放量加速</span>　累计比率仍在上升，增速超 10%</div>
+          <div>⚠️ <span class="text-foreground font-medium">缩量加速</span>　累计比率仍在下降，降幅超 10%</div>
+          <div>📉 <span class="text-foreground font-medium">放量减弱</span>　累计比率仍 >1 但增速放缓（资金流入减弱）</div>
+          <div>📈 <span class="text-foreground font-medium">缩量减弱</span>　累计比率仍 <1 但缩量收窄（资金流出减弱）</div>
+          <div>🔥 <span class="text-foreground font-medium">显著放量</span>　累计比率 > 150% 昨日同期</div>
+          <div>💧 <span class="text-foreground font-medium">极端缩量</span>　累计比率 < 50% 昨日同期</div>
         </div>
+        <div class="font-medium mt-3 mb-1 text-muted-foreground">参考标准：正常 80%-150%，温和放量 150%-250%，显著放量 >250%，显著缩量 50%-80%，极端缩量 <50%</div>
       </div>
 
       <!-- 汇总信息 -->

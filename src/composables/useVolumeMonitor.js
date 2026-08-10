@@ -1,7 +1,6 @@
 import { ref, computed } from 'vue'
 import { fireNotify, initAudio } from '@/js/notify.js'
 import { createAutoRefreshTimer } from './useTimerManager.js'
-
 // ===== 单例状态 =====
 const loading = ref(false)
 const lastUpdate = ref('')
@@ -26,6 +25,7 @@ const _alertCooldown = {}       // { type: timestamp }
 const COOLDOWN_MS = 3 * 60 * 1000  // 3 分钟冷却
 let _prevTrend = ''             // 上一次的趋势状态
 let _prevCumulativeDiff = 0     // 上一次的累计差额（亿元）
+let _prevCumulativeRatio = 1    // 上一次的累计比率（今日/昨日）
 let _prevCumulativeTrend = ''   // 上一次的累计差额趋势: 'positive' | 'negative' | ''
 let _prevDiffDirection = ''     // 上一次的差额变化方向: 'increasing' | 'decreasing' | ''
 
@@ -41,12 +41,14 @@ const _volumeTimer = createAutoRefreshTimer('volume', {
     initAudio()
     _prevTrend = ''
     _prevCumulativeDiff = 0
+    _prevCumulativeRatio = 1
     _prevCumulativeTrend = ''
     _prevDiffDirection = ''
   },
   onStop: () => {
     _prevTrend = ''
     _prevCumulativeDiff = 0
+    _prevCumulativeRatio = 1
     _prevCumulativeTrend = ''
     _prevDiffDirection = ''
   }
@@ -197,16 +199,21 @@ function analyzeTrend() {
   let status = 'stable'
   let label = ''
 
-  // 与昨日同时段比较
-  if (yestRatio < 0.7) {
+  if (yestRatio < 0.5) {
+    status = 'extreme_shrinking'
+    label = `极端缩量（仅为昨日 ${(yestRatio * 100).toFixed(0)}%）`
+  } else if (yestRatio < 0.7) {
     status = 'shrinking'
-    label = `缩量趋势（较昨日同期 ${(yestRatio * 100).toFixed(0)}%）`
+    label = `缩量趋势（为昨日 ${(yestRatio * 100).toFixed(0)}%）`
+  } else if (yestRatio > 2.0) {
+    status = 'extreme_expanding'
+    label = `极端放量（为昨日 ${(yestRatio * 100).toFixed(0)}%）`
   } else if (yestRatio > 1.3) {
     status = 'expanding'
-    label = `放量趋势（较昨日同期 ${(yestRatio * 100).toFixed(0)}%）`
+    label = `放量趋势（为昨日 ${(yestRatio * 100).toFixed(0)}%）`
   } else {
     status = 'stable'
-    label = `量能平稳（较昨日同期 ${(yestRatio * 100).toFixed(0)}%）`
+    label = `量能平稳（为昨日 ${(yestRatio * 100).toFixed(0)}%）`
   }
 
   trendStatus.value = status
@@ -230,17 +237,21 @@ function _canAlert(key) {
 }
 
 function _notify(title, body, level) {
+  initAudio()
   fireNotify(title, body, level, isFileProtocol.value, selectedVoice)
 }
 
 function checkTransitionAlert(from, to) {
   if (!alertEnabled.value) return
 
-  if (from === 'shrinking' && to === 'expanding') {
+  const expandingStates = ['expanding', 'extreme_expanding']
+  const shrinkingStates = ['shrinking', 'extreme_shrinking']
+
+  if (shrinkingStates.includes(from) && expandingStates.includes(to)) {
     if (_canAlert('shrink_to_expand')) {
       _notify('📈 缩量转放量', '市场成交量由缩量转为放量，资金活跃度提升，关注后续走势', 2)
     }
-  } else if (from === 'expanding' && to === 'shrinking') {
+  } else if (expandingStates.includes(from) && shrinkingStates.includes(to)) {
     if (_canAlert('expand_to_shrink')) {
       _notify('📉 放量转缩量', '市场成交量由放量转为缩量，资金活跃度下降，注意风险', 2)
     }
@@ -278,13 +289,21 @@ function checkExtremeAlert() {
   // 持续缩量（较昨日 < 50%）
   if (yestRatio < 0.5) {
     if (_canAlert('extreme_shrink')) {
-      _notify('⚠️ 持续缩量', `当前成交额仅为昨日同期的 ${(yestRatio * 100).toFixed(0)}%，市场交投清淡`, 1)
+      _notify('⚠️ 持续极端缩量', `当前成交额仅为昨日同期的 ${(yestRatio * 100).toFixed(0)}%，市场交投极度清淡`, 1)
+    }
+  } else if (yestRatio < 0.7) {
+    if (_canAlert('significant_shrink')) {
+      _notify('📊 持续缩量', `当前成交额为昨日同期的 ${(yestRatio * 100).toFixed(0)}%，市场交投清淡`, 1)
     }
   }
   // 持续放量（较昨日 > 200%）
   if (yestRatio > 2.0) {
     if (_canAlert('extreme_expand')) {
-      _notify('🔥 持续放量', `当前成交额为昨日同期的 ${(yestRatio * 100).toFixed(0)}%，市场交投活跃`, 2)
+      _notify('🔥 持续极端放量', `当前成交额为昨日同期的 ${(yestRatio * 100).toFixed(0)}%，市场交投极度活跃`, 2)
+    }
+  } else if (yestRatio > 1.3) {
+    if (_canAlert('significant_expand')) {
+      _notify('📊 持续放量', `当前成交额为昨日同期的 ${(yestRatio * 100).toFixed(0)}%，市场交投活跃`, 2)
     }
   }
 }
@@ -293,26 +312,27 @@ function checkCumulativeDiffAlert() {
   if (!alertEnabled.value) return
   const data = minuteData.value
   
-  // 过滤掉没有实际数据的记录
   const validData = data.filter(d => d.hasData && !d.isFuture)
   if (validData.length < WINDOW) return
 
-  // 计算当前累计差额
-  let cumulativeDiff = 0
+  let todayCum = 0
+  let yestCum = 0
   for (const d of validData) {
-    cumulativeDiff += (d.todayVol - d.yestVol)
+    todayCum += d.todayVol
+    yestCum += d.yestVol
   }
-  const cumulativeDiffYi = cumulativeDiff / 1e8  // 转换为亿元
 
-  // 判断当前累计差额趋势
+  const cumulativeDiffYi = (todayCum - yestCum) / 1e8
+
+  const cumulativeRatio = yestCum > 0 ? todayCum / yestCum : 1
+
   let currentTrend = ''
-  if (cumulativeDiffYi > 0) currentTrend = 'positive'
-  else if (cumulativeDiffYi < 0) currentTrend = 'negative'
+  if (cumulativeRatio > 1.05) currentTrend = 'positive'
+  else if (cumulativeRatio < 0.95) currentTrend = 'negative'
 
-  // 判断差额变化方向（与上一次累计差额比较）
   let currentDirection = ''
-  const diffChange = cumulativeDiffYi - _prevCumulativeDiff
-  if (Math.abs(diffChange) < 0.01) {
+  const diffChange = cumulativeRatio - _prevCumulativeRatio
+  if (Math.abs(diffChange) < 0.02) {
     currentDirection = 'stable'
   } else if (diffChange > 0) {
     currentDirection = 'increasing'
@@ -320,82 +340,89 @@ function checkCumulativeDiffAlert() {
     currentDirection = 'decreasing'
   }
 
-  // 1. 检测颜色转换（红转绿/绿转红）
+  // 1. 颜色转换（红转绿/绿转红）
   if (_prevCumulativeTrend && _prevCumulativeTrend !== currentTrend) {
     if (currentTrend === 'negative') {
-      // 红转绿：累计差额由正转负（放量转缩量）
       if (_canAlert('diff_pos_to_neg')) {
-        _notify('📉 累计差额由正转负', `累计成交额差额由正转负，当前 ${cumulativeDiffYi >= 0 ? '+' : ''}${cumulativeDiffYi.toFixed(2)}亿，资金流出加速`, 2)
+        _notify('📉 量能趋势由强转弱', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，资金流出加速`, 2)
       }
     } else if (currentTrend === 'positive') {
-      // 绿转红：累计差额由负转正（缩量转放量）
       if (_canAlert('diff_neg_to_pos')) {
-        _notify('📈 累计差额由负转正', `累计成交额差额由负转正，当前 +${cumulativeDiffYi.toFixed(2)}亿，资金流入加速`, 2)
+        _notify('📈 量能趋势由弱转强', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，资金流入加速`, 2)
       }
     }
   }
 
-  // 2. 检测持续放量加剧（红色越来越高）
+  // 2. 持续放量加剧（红色越来越高，增速加快）
   if (currentTrend === 'positive' && currentDirection === 'increasing') {
-    const pctChange = _prevCumulativeDiff !== 0 
-      ? ((cumulativeDiffYi - _prevCumulativeDiff) / Math.abs(_prevCumulativeDiff) * 100) 
+    const ratioChange = _prevCumulativeRatio > 0
+      ? ((cumulativeRatio - _prevCumulativeRatio) / _prevCumulativeRatio) * 100
       : 0
-    if (pctChange > 20 && cumulativeDiffYi > 1) {
+    if (ratioChange > 10 && cumulativeRatio > 1.15) {
       if (_canAlert('diff_strong_increase')) {
-        _notify('🚀 放量加速', `累计放量差额加速增长，当前 +${cumulativeDiffYi.toFixed(2)}亿，较上次增长 ${pctChange.toFixed(0)}%`, 2)
+        _notify('🚀 放量加速', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，较上次加速 ${ratioChange.toFixed(0)}%`, 2)
       }
     }
   }
 
-  // 3. 检测红色持续降低（放量减弱，柱子变矮）
+  // 3. 放量减弱（红色柱子变矮，增速放缓）——放宽触发条件
   if (currentTrend === 'positive' && currentDirection === 'decreasing') {
-    const pctChange = _prevCumulativeDiff !== 0 
-      ? ((_prevCumulativeDiff - cumulativeDiffYi) / Math.abs(_prevCumulativeDiff) * 100) 
+    const ratioChange = _prevCumulativeRatio > 0
+      ? ((_prevCumulativeRatio - cumulativeRatio) / _prevCumulativeRatio) * 100
       : 0
-    if (pctChange > 15 && cumulativeDiffYi > 0.5) {
+    // 只要累积比率仍在 1.05 以上且增速放缓（相对变化 >= 3%）即触发
+    if (ratioChange > 3 && cumulativeRatio > 1.05) {
       if (_canAlert('diff_positive_decreasing')) {
-        _notify('📉 放量减弱', `累计放量差额持续降低，当前 +${cumulativeDiffYi.toFixed(2)}亿，较上次减少 ${pctChange.toFixed(0)}%，资金流入放缓`, 2)
+        _notify('📉 放量减弱', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，增速放缓 ${ratioChange.toFixed(0)}%，资金流入放缓`, 2)
       }
     }
   }
 
-  // 4. 检测持续缩量加剧（绿色越来越深）
+  // 4. 持续缩量加剧（绿色越来越深，缩量加速）
   if (currentTrend === 'negative' && currentDirection === 'decreasing') {
-    const pctChange = _prevCumulativeDiff !== 0 
-      ? ((_prevCumulativeDiff - cumulativeDiffYi) / Math.abs(_prevCumulativeDiff) * 100) 
+    const ratioChange = _prevCumulativeRatio > 0
+      ? ((_prevCumulativeRatio - cumulativeRatio) / _prevCumulativeRatio) * 100
       : 0
-    if (pctChange > 20 && cumulativeDiffYi < -1) {
+    if (ratioChange > 10 && cumulativeRatio < 0.85) {
       if (_canAlert('diff_strong_decrease')) {
-        _notify('⚠️ 缩量加速', `累计缩量差额加速扩大，当前 ${cumulativeDiffYi.toFixed(2)}亿，较上次扩大 ${pctChange.toFixed(0)}%`, 1)
+        _notify('⚠️ 缩量加速', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，缩量加速 ${ratioChange.toFixed(0)}%`, 1)
       }
     }
   }
 
-  // 5. 检测绿色持续降低（缩量减弱，柱子变矮）
+  // 5. 缩量减弱（绿色柱子变矮，缩量收窄）
   if (currentTrend === 'negative' && currentDirection === 'increasing') {
-    const pctChange = _prevCumulativeDiff !== 0 
-      ? ((cumulativeDiffYi - _prevCumulativeDiff) / Math.abs(_prevCumulativeDiff) * 100) 
+    const ratioChange = _prevCumulativeRatio > 0
+      ? ((cumulativeRatio - _prevCumulativeRatio) / _prevCumulativeRatio) * 100
       : 0
-    if (pctChange > 15 && cumulativeDiffYi < -0.5) {
+    if (ratioChange > 8 && cumulativeRatio < 0.95) {
       if (_canAlert('diff_negative_decreasing')) {
-        _notify('📈 缩量减弱', `累计缩量差额持续收窄，当前 ${cumulativeDiffYi.toFixed(2)}亿，较上次减少 ${pctChange.toFixed(0)}%，资金流出放缓`, 2)
+        _notify('📈 缩量减弱', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，缩量收窄 ${ratioChange.toFixed(0)}%，资金流出放缓`, 1)
       }
     }
   }
 
-  // 6. 检测极端累计差额
-  if (cumulativeDiffYi > 3) {
-    if (_canAlert('diff_extreme_positive')) {
-      _notify('🔥 累计放量超3亿', `今日累计成交放量差额达 +${cumulativeDiffYi.toFixed(2)}亿，显著高于昨日同期`, 1)
+  // 6. 极端比率告警（基于比率而非绝对值）
+  if (cumulativeRatio > 2.0) {
+    if (_canAlert('diff_extreme_expand')) {
+      _notify('🔥 极端放量', `今日累计量能达昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投极度活跃`, 2)
     }
-  } else if (cumulativeDiffYi < -3) {
-    if (_canAlert('diff_extreme_negative')) {
-      _notify('⚠️ 累计缩量超3亿', `今日累计成交缩量差额达 ${cumulativeDiffYi.toFixed(2)}亿，显著低于昨日同期`, 1)
+  } else if (cumulativeRatio > 1.5) {
+    if (_canAlert('diff_significant_expand')) {
+      _notify('📊 显著放量', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投活跃`, 1)
+    }
+  } else if (cumulativeRatio < 0.3) {
+    if (_canAlert('diff_extreme_shrink')) {
+      _notify('⚠️ 极端缩量', `今日累计量能仅为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投极度清淡`, 1)
+    }
+  } else if (cumulativeRatio < 0.5) {
+    if (_canAlert('diff_significant_shrink')) {
+      _notify('📊 显著缩量', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投清淡`, 1)
     }
   }
 
-  // 更新状态
   _prevCumulativeDiff = cumulativeDiffYi
+  _prevCumulativeRatio = cumulativeRatio
   if (currentTrend) _prevCumulativeTrend = currentTrend
   _prevDiffDirection = currentDirection
 }
@@ -477,14 +504,18 @@ const changePercent = computed(() => {
 
 const trendColor = computed(() => {
   const s = trendStatus.value
+  if (s === 'extreme_expanding') return 'text-red-600'
   if (s === 'expanding') return 'text-red-500'
+  if (s === 'extreme_shrinking') return 'text-green-600'
   if (s === 'shrinking') return 'text-green-500'
   return 'text-muted-foreground'
 })
 
 const trendIcon = computed(() => {
   const s = trendStatus.value
-  if (s === 'expanding') return '📈'
+  if (s === 'extreme_expanding') return '�'
+  if (s === 'expanding') return '��'
+  if (s === 'extreme_shrinking') return '⚠️'
   if (s === 'shrinking') return '📉'
   return '➡️'
 })
