@@ -111,3 +111,85 @@
 .dark .text-slate-500 { color: rgb(148 163 184); }
 .dark .text-slate-400 { color: rgb(203 213 225); }
 .dark .text-slate-300 { color: rgb(226 232 240); }
+
+/* ========== 滚动条样式 ========== */
+
+/* 全局滚动条 - 使用CSS变量适配明暗主题 */
+:root {
+  --scrollbar-size: 8px;
+  --scrollbar-thumb: rgba(148, 163, 184, 0.4);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.65);
+  --scrollbar-track: transparent;
+  --scrollbar-radius: 4px;
+}
+
+.dark {
+  --scrollbar-thumb: rgba(148, 163, 184, 0.35);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.55);
+}
+
+/* Webkit 系浏览器 (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: var(--scrollbar-radius);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--scrollbar-radius);
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* 水平滚动条独立样式 */
+::-webkit-scrollbar:horizontal {
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+  border-radius: 3px;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+/* 深色模式下滚动条增强对比度 */
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* 特定容器滚动条优化 */
+.scroll-container,
+.overflow-auto,
+.overflow-y-auto,
+.overflow-x-auto,
+.table-wrapper,
+[class*="overflow"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+/* 滚动时平滑过渡 */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
