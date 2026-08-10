@@ -165,13 +165,26 @@ function wakeUpSpeechSynthesis() {
 }
 
 // Mac SpeechSynthesis修复：队列播放 + 状态恢复
+let _speechBusySince = 0; // 记录 _speechBusy 变为 true 的时间
+
 function processNextSpeech(selectedVoice) {
-  if (_speechBusy || _speechQueue.length === 0) return;
+  // 如果 _speechBusy 卡死超过 15 秒，强制重置（兜底机制）
+  if (_speechBusy) {
+    if (Date.now() - _speechBusySince > 15000) {
+      console.warn('_speechBusy 卡死超过 15 秒，强制重置');
+      _speechBusy = false;
+    } else {
+      return;
+    }
+  }
+  
+  if (_speechQueue.length === 0) return;
 
   const item = _speechQueue.shift();
   if (!item) return;
 
   _speechBusy = true;
+  _speechBusySince = Date.now(); // 记录进入 busy 状态的时间
   const { text, level } = item;
 
   const doSpeak = () => {
@@ -221,15 +234,16 @@ function processNextSpeech(selectedVoice) {
     let started = false;
     const startTime = Date.now();
 
+    // 超时检测：如果 8 秒内还没播放完，强制结束并播放 beep，继续队列
     const timeout = setTimeout(() => {
       if (!completed) {
         const elapsed = Date.now() - startTime;
-        console.warn(`语音播放超时(${elapsed}ms)，引擎状态: speaking=${window.speechSynthesis.speaking}, paused=${window.speechSynthesis.paused}, started=${started}`);
+        console.warn(`语音播放超时(${elapsed}ms)，强制结束`);
         completed = true;
         window.speechSynthesis.cancel();
         _speechBusy = false;
         playBeep(level);
-        setTimeout(() => processNextSpeech(selectedVoice), 100);
+        setTimeout(() => processNextSpeech(selectedVoice), 200);
       }
     }, 8000);
 
@@ -244,7 +258,8 @@ function processNextSpeech(selectedVoice) {
       completed = true;
       clearTimeout(timeout);
       _speechBusy = false;
-      setTimeout(() => processNextSpeech(selectedVoice), 100);
+      // 延迟一下再处理下一条，给引擎喘息时间
+      setTimeout(() => processNextSpeech(selectedVoice), 200);
     };
 
     utter.onerror = (e) => {
@@ -255,50 +270,42 @@ function processNextSpeech(selectedVoice) {
         clearTimeout(timeout);
         _speechBusy = false;
         playBeep(level);
-        setTimeout(() => processNextSpeech(selectedVoice), 100);
+        setTimeout(() => processNextSpeech(selectedVoice), 200);
       }
     };
 
-    // Mac修复：强制清空引擎状态
-    window.speechSynthesis.cancel();
-
-    // Mac修复：多次调用cancel确保清空
-    setTimeout(() => window.speechSynthesis.cancel(), 50);
-    setTimeout(() => window.speechSynthesis.cancel(), 100);
-
-    // Mac修复：唤醒引擎
-    setTimeout(() => {
-      wakeUpSpeechSynthesis();
-
-      // 再延迟一下播放
+    // 关键修复：不再多次 cancel 引擎！
+    // 仅在开始新播放前，确认引擎空闲。如果引擎未空闲，尝试一次性取消。
+    if (window.speechSynthesis.speaking) {
+      console.log('引擎仍在播放，取消以开始新任务...');
+      window.speechSynthesis.cancel();
+      // 给引擎一点时间处理取消
       setTimeout(() => {
         try {
           console.log('开始调用speak()，文本:', text.substring(0, 20) + '...');
           window.speechSynthesis.speak(utter);
-
-          // Mac修复：如果引擎卡住，检测并强制恢复
-          const checkStart = setTimeout(() => {
-            if (!started && !completed) {
-              console.warn('引擎未启动，尝试强制恢复...');
-              window.speechSynthesis.cancel();
-              window.speechSynthesis.pause();
-              window.speechSynthesis.resume();
-            }
-          }, 500);
-
-          // 清理检测器
-          const cleanup = () => clearTimeout(checkStart);
-          if (completed) cleanup();
         } catch (e) {
           console.error('语音合成调用失败:', e);
           completed = true;
           clearTimeout(timeout);
           _speechBusy = false;
           playBeep(level);
-          setTimeout(() => processNextSpeech(selectedVoice), 100);
+          setTimeout(() => processNextSpeech(selectedVoice), 200);
         }
       }, 150);
-    }, 150);
+    } else {
+      try {
+        console.log('开始调用speak()，文本:', text.substring(0, 20) + '...');
+        window.speechSynthesis.speak(utter);
+      } catch (e) {
+        console.error('语音合成调用失败:', e);
+        completed = true;
+        clearTimeout(timeout);
+        _speechBusy = false;
+        playBeep(level);
+        setTimeout(() => processNextSpeech(selectedVoice), 200);
+      }
+    }
   };
 
   // 等待voices准备好
@@ -326,31 +333,12 @@ function processNextSpeech(selectedVoice) {
 export function speakAlert(title, body, level, selectedVoice) {
   initAudio();
 
-  // 先触发一次 beep 作为最小保证（即使语音合成失败也能听到）
-  // 低级别(1)先不响，避免持续报警；中高级别一定响
-  try {
-    playBeep(level || 2);
-  } catch (e) { }
-
   try {
     if ('speechSynthesis' in window) {
-      // 强制唤醒：某些浏览器（尤其 Mac/Safari）speechSynthesis 会因为长时间未使用而挂起
-      try {
-        window.speechSynthesis.cancel();
-      } catch (e) { }
-
-      const cleanText = (title + '。' + body).replace(/[⚠️✅📈📉🔻🟠🔔📋🔥⚠️💧🚀📊📉📈]+/g, '').replace(/\s+/g, ' ').trim();
+      const cleanText = (title + '。' + body).replace(/[^\u4e00-\u9fa5a-zA-Z0-9，。！？、：；]+/g, ' ').trim();
       if (!cleanText) return;
 
-      // 重置可能卡死的语音总线（某些情况下 _speechBusy 会一直卡在 true）
-      if (_speechBusy) {
-        try {
-          window.speechSynthesis.cancel();
-        } catch (e) { }
-        _speechBusy = false;
-      }
-
-      // 添加到队列（仅保留最近 5 条，避免告警风暴）
+      // 仅保留最近 5 条，避免告警风暴
       _speechQueue.push({ text: cleanText, level: level || 2 });
       if (_speechQueue.length > 5) _speechQueue.shift();
 
@@ -360,6 +348,9 @@ export function speakAlert(title, body, level, selectedVoice) {
   } catch (e) {
     console.error('语音合成失败:', e);
   }
+
+  // Fallback: 如果不支持 speechSynthesis 或出错，响铃
+  playBeep(level || 2);
 }
 
 export function testNotify(isFileProtocol, selectedVoice) {
