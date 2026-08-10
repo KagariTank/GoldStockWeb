@@ -37,7 +37,7 @@
           <div>⚠️ <span class="text-foreground font-medium">持续极端缩量</span>　近5分钟均量 < 昨日同期 50%</div>
           <div>🔥 <span class="text-foreground font-medium">持续极端放量</span>　近5分钟均量 > 昨日同期 200%</div>
         </div>
-        <div class="font-medium mt-3 mb-2">累计差额告警（基于比率，红=放量，绿=缩量）</div>
+        <div class="font-medium mt-3 mb-2">成交额变动（红=放量，绿=缩量）</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-muted-foreground">
           <div>📈 <span class="text-foreground font-medium">绿转红</span>　累计比率由 <1 转为 >1（缩量转放量）</div>
           <div>📉 <span class="text-foreground font-medium">红转绿</span>　累计比率由 >1 转为 <1（放量转缩量）</div>
@@ -79,24 +79,24 @@
         <span :class="trendColor" class="font-semibold text-base">
           {{ trendIcon }} {{ trendLabel }}
         </span>
-        <span class="text-muted-foreground ml-2">累计差额：</span>
+        <span class="text-muted-foreground ml-2">当前变动：</span>
         <span :class="cumulativeDiffColor" class="font-semibold text-base">
           {{ cumulativeDiffText }}
         </span>
       </div>
 
-      <!-- ECharts 累计量能图（全天时间轴） -->
+      <!-- ECharts 成交量对比图 -->
       <div v-if="minuteData.length > 0" class="border rounded-lg mb-4 p-2">
         <div class="px-2 mb-2">
-          <span class="text-sm font-medium">累计成交量 — 今日 vs 昨日累计（全天）</span>
+          <span class="text-sm font-medium">成交量对比 — 今日 vs 昨日</span>
         </div>
         <div ref="chartRef" class="w-full" style="height: 350px"></div>
       </div>
 
-      <!-- ECharts 累计差额图（全天时间轴） -->
+      <!-- ECharts 成交额变动图 -->
       <div v-if="minuteData.length > 0" class="border rounded-lg mb-4 p-2">
         <div class="px-2 mb-2">
-          <span class="text-sm font-medium">累计成交额差额 — 今日减昨日累计（红=累计放量，绿=累计缩量）</span>
+          <span class="text-sm font-medium">成交额变动</span>
         </div>
         <div ref="diffChartRef" class="w-full" style="height: 250px"></div>
       </div>
@@ -199,19 +199,15 @@ const chartOption = computed(() => {
 
   const times = data.map(d => d.time)
   
-  // 计算累计成交量（从9:30开始累加）
-  let todayCum = 0
-  let yestCum = 0
+  // 使用 API 返回的累计值（turnover 本身就是累计的，不需要再次累加）
   const todayValues = data.map(d => {
     if (d.todayVol === null || d.todayVol === undefined) return null
-    todayCum += d.todayVol
-    return +(todayCum / 1e8).toFixed(2)
+    return +(d.todayVol / 1e8).toFixed(2)
   })
   
   const yestValues = data.map(d => {
     if (d.yestVol === null || d.yestVol === undefined) return null
-    yestCum += d.yestVol
-    return +(yestCum / 1e8).toFixed(2)
+    return +(d.yestVol / 1e8).toFixed(2)
   })
 
   return {
@@ -249,16 +245,12 @@ const chartOption = computed(() => {
       axisLabel: {
         fontSize: 11,
         color: '#888',
-        // 全天240分钟，每30分钟显示一个标签
-        interval: 29,
-        // 格式化显示关键时间点
+        interval: 0,
+        rotate: 0,
         formatter: (value, index) => {
           const timeStr = data[index]?.time || value
-          // 只显示整点和关键时间点
-          if (timeStr === '09:30' || timeStr === '10:00' || timeStr === '10:30' ||
-              timeStr === '11:00' || timeStr === '11:30' || timeStr === '13:00' ||
-              timeStr === '13:30' || timeStr === '14:00' || timeStr === '14:30' ||
-              timeStr === '15:00') {
+          const keyTimes = ['09:30', '10:00', '10:30', '11:00', '11:30', '13:30', '14:00', '14:30', '15:00']
+          if (keyTimes.includes(timeStr)) {
             return timeStr
           }
           return ''
@@ -283,7 +275,7 @@ const chartOption = computed(() => {
         symbol: 'circle',
         symbolSize: 4,
         showSymbol: false,
-        connectNulls: false,
+        connectNulls: true,
         lineStyle: { width: 2.5, color: '#ff6b6b' },
         itemStyle: { color: '#ff6b6b' },
         areaStyle: {
@@ -303,7 +295,7 @@ const chartOption = computed(() => {
         smooth: true,
         symbol: 'none',
         showSymbol: false,
-        connectNulls: false,
+        connectNulls: true,
         lineStyle: { width: 1.5, color: '#888', type: 'dashed' },
         itemStyle: { color: '#888' },
         emphasis: { focus: 'series' },
@@ -322,7 +314,7 @@ function updateChart() {
   if (opt) chart.setOption(opt, { notMerge: true })
 }
 
-// ===== 累计差额图 =====
+// ===== 成交额变动图 =====
 const diffChartRef = ref(null)
 let diffChart = null
 
@@ -332,16 +324,10 @@ const diffChartOption = computed(() => {
 
   const times = data.map(d => d.time)
   
-  // 计算累计差额（从9:30开始累加）
-  let cumulativeDiff = 0
+  // 使用 API 直接提供的 turnover_change 字段
   const diffs = data.map(d => {
-    // 无数据时保持null，不参与累计
-    if (d.todayVol === null || d.todayVol === undefined || d.yestVol === null) {
-      return null
-    }
-    const minDiff = d.todayVol - d.yestVol
-    cumulativeDiff += minDiff
-    return +(cumulativeDiff / 1e8).toFixed(2)
+    if (d.turnoverChange === null || d.turnoverChange === undefined) return null
+    return +(d.turnoverChange / 1e8).toFixed(2)
   })
 
   return {
@@ -356,13 +342,13 @@ const diffChartOption = computed(() => {
         const p = params[0]
         if (p.value === null || p.value === undefined) {
           return `<div style="font-weight:600;margin-bottom:4px">${p.axisValue}</div>
-                  <div>累计差额: <span style="color:#999">无数据</span></div>`
+                  <div>变动额: <span style="color:#999">无数据</span></div>`
         }
         const sign = p.value >= 0 ? '+' : ''
         const color = p.value >= 0 ? '#ff6b6b' : '#26de81'
-        const label = p.value >= 0 ? '累计放量' : '累计缩量'
+        const label = p.value >= 0 ? '放量' : '缩量'
         return `<div style="font-weight:600;margin-bottom:4px">${p.axisValue}</div>
-                <div>累计差额: <span style="font-weight:700;color:${color}">${sign}${p.value}亿</span>（${label}）</div>`
+                <div>变动额: <span style="font-weight:700;color:${color}">${sign}${p.value}亿</span>（${label}）</div>`
       }
     },
     grid: { left: 60, right: 25, top: 15, bottom: 30 },
@@ -372,13 +358,12 @@ const diffChartOption = computed(() => {
       axisLabel: {
         fontSize: 11,
         color: '#888',
-        interval: 29,
+        interval: 0,
+        rotate: 0,
         formatter: (value, index) => {
           const timeStr = data[index]?.time || value
-          if (timeStr === '09:30' || timeStr === '10:00' || timeStr === '10:30' ||
-              timeStr === '11:00' || timeStr === '11:30' || timeStr === '13:00' ||
-              timeStr === '13:30' || timeStr === '14:00' || timeStr === '14:30' ||
-              timeStr === '15:00') {
+          const keyTimes = ['09:30', '10:00', '10:30', '11:00', '11:30', '13:30', '14:00', '14:30', '15:00']
+          if (keyTimes.includes(timeStr)) {
             return timeStr
           }
           return ''

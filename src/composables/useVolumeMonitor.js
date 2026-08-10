@@ -7,10 +7,10 @@ const lastUpdate = ref('')
 
 // 原始数据
 const header = ref(null)       // { today, yesterday, change, predict }
-const points = ref([])         // [[ts, todayCum, yestCum, change], ...]
+const points = ref([])         // [[ts, turnover, turnover_pre, turnover_change], ...]
 
-// 分钟级增量数据
-const minuteData = ref([])     // [{ time, todayVol, yestVol, ratio }]
+// 分钟级数据（API 返回的是累计值，不需再次累加）
+const minuteData = ref([])     // [{ time, todayVol, yestVol, turnoverChange, ratio }]
 
 // 趋势状态
 const trendStatus = ref('')    // 'shrinking' | 'expanding' | 'stable' | ''
@@ -76,16 +76,16 @@ function formatPercent(val) {
 
 const WINDOW = 5  // 最近5分钟窗口
 
-// 生成A股全天交易时间轴（9:30-11:30, 13:00-15:00）
+// 生成A股全天交易时间轴（9:30-11:30, 13:01-15:00，跳过13:00）
 function generateFullDayTimestamps(baseDate) {
   const timestamps = []
   const slots = [
-    { start: 9 * 60 + 30, end: 11 * 60 + 30 },   // 上午：9:30 - 11:30
-    { start: 13 * 60, end: 15 * 60 }              // 下午：13:00 - 15:00
+    { start: 9 * 60 + 30, end: 11 * 60 + 30 },   // 上午：9:30 - 11:30（含）
+    { start: 13 * 60 + 1, end: 15 * 60 }          // 下午：13:01 - 15:00（含，跳过13:00）
   ]
   
   for (const slot of slots) {
-    for (let minutes = slot.start; minutes < slot.end; minutes++) {
+    for (let minutes = slot.start; minutes <= slot.end; minutes++) {
       const hours = Math.floor(minutes / 60)
       const mins = minutes % 60
       const ts = new Date(baseDate)
@@ -100,48 +100,74 @@ function generateFullDayTimestamps(baseDate) {
   return timestamps
 }
 
+function formatTimeStr(ts) {
+  const d = new Date(ts)
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+}
+
+// 判断是否为A股交易时段（不含13:00）
+function isTradingTime(ts) {
+  const d = new Date(ts)
+  const m = d.getHours() * 60 + d.getMinutes()
+  return (m >= 9 * 60 + 30 && m <= 11 * 60 + 30) || (m >= 13 * 60 + 1 && m <= 15 * 60)
+}
+
 function computeMinuteData(rawPoints) {
-  if (!rawPoints || rawPoints.length < 2) return []
+  if (!rawPoints || rawPoints.length === 0) return []
 
   const now = Date.now()
   
-  // 使用今天的日期生成全天时间轴
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const fullDayTimestamps = generateFullDayTimestamps(today)
-  
-  // 将原始数据转换为 Map，便于按时间查找
-  const dataMap = new Map()
-  for (let i = 1; i < rawPoints.length; i++) {
-    const [ts, todayCum, yestCum] = rawPoints[i]
-    const [_, prevToday, prevYest] = rawPoints[i - 1]
-
-    const todayVol = todayCum - prevToday
-    const yestVol = yestCum - prevYest
-
+  // 先从 API 数据中提取所有有效点
+  const apiDataMap = new Map()
+  for (const point of rawPoints) {
+    const [ts, turnover, turnoverPre, turnoverChange] = point
     // 跳过无效数据
-    if (todayVol < 0 || yestVol < 0) continue
+    if (turnover < 0 || turnoverPre < 0) continue
 
     let ratio = 1
-    if (yestVol > 0) {
-      ratio = todayVol / yestVol
+    if (turnoverPre > 0) {
+      ratio = turnover / turnoverPre
       if (!isFinite(ratio) || isNaN(ratio)) ratio = 1
     }
 
-    dataMap.set(ts, { todayVol, yestVol, ratio })
+    apiDataMap.set(ts, { todayVol: turnover, yestVol: turnoverPre, turnoverChange: turnoverChange || 0, ratio })
   }
-  
-  // 按全天时间轴生成数据，无数据的时间点用null填充
+
+  // 如果 API 数据很少，直接返回 API 数据的时间轴，不做填充
+  if (apiDataMap.size < 30) {
+    const result = []
+    for (const [ts, data] of apiDataMap) {
+      const isFuture = ts > now
+      result.push({
+        time: formatTimeStr(ts),
+        ts,
+        todayVol: isFuture ? null : data.todayVol,
+        yestVol: isFuture ? null : data.yestVol,
+        turnoverChange: isFuture ? null : data.turnoverChange,
+        ratio: isFuture ? null : data.ratio,
+        isFuture,
+        hasData: !isFuture
+      })
+    }
+    return result.sort((a, b) => a.ts - b.ts)
+  }
+
+  // 正常情况：用全天时间轴填充，缺失点用 null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const fullDayTimestamps = generateFullDayTimestamps(today)
+
   const result = fullDayTimestamps.map(({ ts, timeStr }) => {
-    const data = dataMap.get(ts)
+    const data = apiDataMap.get(ts)
     const isFuture = ts > now
-    const hasData = !!data && !isFuture  // 只有已发生且有实际数据才标记为有效
+    const hasData = !!data && !isFuture && isTradingTime(ts)
     
     return {
       time: timeStr,
       ts,
       todayVol: hasData ? data.todayVol : null,
       yestVol: hasData ? data.yestVol : null,
+      turnoverChange: hasData ? data.turnoverChange : null,
       ratio: hasData ? data.ratio : null,
       isFuture,
       hasData
@@ -154,8 +180,8 @@ function computeMinuteData(rawPoints) {
 function analyzeTrend() {
   const data = minuteData.value
   
-  // 过滤掉没有实际数据的记录（包括未来时间点和无数据的已发生时间点）
-  const validData = data.filter(d => d.hasData && !d.isFuture)
+  // 过滤掉没有实际数据的记录
+  const validData = data.filter(d => d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0)
   
   if (validData.length < WINDOW) {
     trendStatus.value = ''
@@ -163,34 +189,27 @@ function analyzeTrend() {
     return
   }
 
-  // 取最近 WINDOW 分钟的有效数据
+  // 取最近 WINDOW 分钟的数据
   const recent = validData.slice(-WINDOW)
+  // 取再往前的 WINDOW 分钟（用于环比）
+  const prevWindow = validData.slice(-WINDOW * 2, -WINDOW)
 
-  // 过滤掉无效数据
-  const validRecent = recent.filter(d => d.todayVol > 0 && d.yestVol > 0 && isFinite(d.ratio) && !isNaN(d.ratio))
-
-  if (validRecent.length < WINDOW / 2) {
+  if (recent.length < WINDOW / 2) {
     trendStatus.value = ''
     trendLabel.value = '有效数据不足'
     return
   }
 
-  // 计算平均值
-  const recentAvg = validRecent.reduce((s, d) => s + d.todayVol, 0) / validRecent.length
-  const recentYestAvg = validRecent.reduce((s, d) => s + d.yestVol, 0) / validRecent.length
+  // 计算最近窗口的增量（今日 vs 昨日）
+  const firstRecent = recent[0]
+  const lastRecent = recent[recent.length - 1]
+  const todayIncrement = lastRecent.todayVol - firstRecent.todayVol
+  const yestIncrement = lastRecent.yestVol - firstRecent.yestVol
 
-  // 检查平均值是否有效
-  if (recentAvg <= 0 || recentYestAvg <= 0 || !isFinite(recentAvg) || !isFinite(recentYestAvg)) {
-    trendStatus.value = ''
-    trendLabel.value = '数据异常'
-    return
-  }
+  // 今日增量 vs 昨日同期增量
+  const ratio = yestIncrement > 0 ? todayIncrement / yestIncrement : 1
 
-  // 今天 vs 昨天同时段
-  const yestRatio = recentAvg / recentYestAvg
-
-  // 检查比例是否有效
-  if (!isFinite(yestRatio) || isNaN(yestRatio)) {
+  if (!isFinite(ratio) || isNaN(ratio)) {
     trendStatus.value = ''
     trendLabel.value = '数据异常'
     return
@@ -199,21 +218,21 @@ function analyzeTrend() {
   let status = 'stable'
   let label = ''
 
-  if (yestRatio < 0.5) {
+  if (ratio < 0.5) {
     status = 'extreme_shrinking'
-    label = `极端缩量（仅为昨日 ${(yestRatio * 100).toFixed(0)}%）`
-  } else if (yestRatio < 0.7) {
+    label = `极端缩量（近${WINDOW}分钟仅为昨日 ${(ratio * 100).toFixed(0)}%）`
+  } else if (ratio < 0.7) {
     status = 'shrinking'
-    label = `缩量趋势（为昨日 ${(yestRatio * 100).toFixed(0)}%）`
-  } else if (yestRatio > 2.0) {
+    label = `缩量趋势（近${WINDOW}分钟为昨日 ${(ratio * 100).toFixed(0)}%）`
+  } else if (ratio > 2.0) {
     status = 'extreme_expanding'
-    label = `极端放量（为昨日 ${(yestRatio * 100).toFixed(0)}%）`
-  } else if (yestRatio > 1.3) {
+    label = `极端放量（近${WINDOW}分钟为昨日 ${(ratio * 100).toFixed(0)}%）`
+  } else if (ratio > 1.3) {
     status = 'expanding'
-    label = `放量趋势（为昨日 ${(yestRatio * 100).toFixed(0)}%）`
+    label = `放量趋势（近${WINDOW}分钟为昨日 ${(ratio * 100).toFixed(0)}%）`
   } else {
     status = 'stable'
-    label = `量能平稳（为昨日 ${(yestRatio * 100).toFixed(0)}%）`
+    label = `量能平稳（近${WINDOW}分钟为昨日 ${(ratio * 100).toFixed(0)}%）`
   }
 
   trendStatus.value = status
@@ -263,47 +282,44 @@ function checkExtremeAlert() {
   const data = minuteData.value
   
   // 过滤掉没有实际数据的记录
-  const validData = data.filter(d => d.hasData && !d.isFuture)
+  const validData = data.filter(d => d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0)
   if (validData.length < WINDOW) return
 
   const recent = validData.slice(-WINDOW)
+  if (recent.length < WINDOW / 2) return
 
-  // 过滤无效数据
-  const validRecent = recent.filter(d => d.todayVol > 0 && d.yestVol > 0 && isFinite(d.ratio) && !isNaN(d.ratio))
+  // 计算最近窗口的增量（今日 vs 昨日）
+  const first = recent[0]
+  const last = recent[recent.length - 1]
+  const todayIncrement = last.todayVol - first.todayVol
+  const yestIncrement = last.yestVol - first.yestVol
 
-  if (validRecent.length < WINDOW / 2) return
-
-  const recentYestAvg = validRecent.reduce((s, d) => s + d.yestVol, 0) / validRecent.length
-  const recentAvg = validRecent.reduce((s, d) => s + d.todayVol, 0) / validRecent.length
-
-  // 检查数据有效性
-  if (recentYestAvg <= 0 || recentAvg <= 0 || !isFinite(recentYestAvg) || !isFinite(recentAvg)) {
+  if (yestIncrement <= 0 || todayIncrement <= 0 || !isFinite(todayIncrement) || !isFinite(yestIncrement)) {
     return
   }
 
-  const yestRatio = recentAvg / recentYestAvg
+  const ratio = todayIncrement / yestIncrement
 
-  // 检查比例有效性
-  if (!isFinite(yestRatio) || isNaN(yestRatio)) return
+  if (!isFinite(ratio) || isNaN(ratio)) return
 
   // 持续缩量（较昨日 < 50%）
-  if (yestRatio < 0.5) {
+  if (ratio < 0.5) {
     if (_canAlert('extreme_shrink')) {
-      _notify('⚠️ 持续极端缩量', `当前成交额仅为昨日同期的 ${(yestRatio * 100).toFixed(0)}%，市场交投极度清淡`, 1)
+      _notify('⚠️ 持续极端缩量', `近${WINDOW}分钟成交额仅为昨日同期的 ${(ratio * 100).toFixed(0)}%，市场交投极度清淡`, 1)
     }
-  } else if (yestRatio < 0.7) {
+  } else if (ratio < 0.7) {
     if (_canAlert('significant_shrink')) {
-      _notify('📊 持续缩量', `当前成交额为昨日同期的 ${(yestRatio * 100).toFixed(0)}%，市场交投清淡`, 1)
+      _notify('📊 持续缩量', `近${WINDOW}分钟成交额为昨日同期的 ${(ratio * 100).toFixed(0)}%，市场交投清淡`, 1)
     }
   }
   // 持续放量（较昨日 > 200%）
-  if (yestRatio > 2.0) {
+  if (ratio > 2.0) {
     if (_canAlert('extreme_expand')) {
-      _notify('🔥 持续极端放量', `当前成交额为昨日同期的 ${(yestRatio * 100).toFixed(0)}%，市场交投极度活跃`, 2)
+      _notify('🔥 持续极端放量', `近${WINDOW}分钟成交额为昨日同期的 ${(ratio * 100).toFixed(0)}%，市场交投极度活跃`, 2)
     }
-  } else if (yestRatio > 1.3) {
+  } else if (ratio > 1.3) {
     if (_canAlert('significant_expand')) {
-      _notify('📊 持续放量', `当前成交额为昨日同期的 ${(yestRatio * 100).toFixed(0)}%，市场交投活跃`, 2)
+      _notify('📊 持续放量', `近${WINDOW}分钟成交额为昨日同期的 ${(ratio * 100).toFixed(0)}%，市场交投活跃`, 2)
     }
   }
 }
@@ -315,12 +331,9 @@ function checkCumulativeDiffAlert() {
   const validData = data.filter(d => d.hasData && !d.isFuture)
   if (validData.length < WINDOW) return
 
-  let todayCum = 0
-  let yestCum = 0
-  for (const d of validData) {
-    todayCum += d.todayVol
-    yestCum += d.yestVol
-  }
+  // todayVol 和 yestVol 已经是累计值，取最后一个即可
+  const todayCum = validData[validData.length - 1].todayVol || 0
+  const yestCum = validData[validData.length - 1].yestVol || 0
 
   const cumulativeDiffYi = (todayCum - yestCum) / 1e8
 
@@ -522,11 +535,11 @@ const trendIcon = computed(() => {
 
 const cumulativeDiff = computed(() => {
   const data = minuteData.value
-  const validData = data.filter(d => d.hasData && !d.isFuture)
+  const validData = data.filter(d => d.hasData && !d.isFuture && d.turnoverChange !== null)
   if (validData.length === 0) return 0
   let diff = 0
   for (const d of validData) {
-    diff += (d.todayVol - d.yestVol)
+    diff += d.turnoverChange
   }
   return diff / 1e8  // 转换为亿元
 })
