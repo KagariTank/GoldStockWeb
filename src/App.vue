@@ -11,6 +11,7 @@ import MonitorTab from '@/components/MonitorTab.vue'
 import DividendTab from '@/components/DividendTab.vue'
 import SectorFundFlowTab from '@/components/SectorFundFlowTab.vue'
 import VolumeMonitorTab from '@/components/VolumeMonitorTab.vue'
+import TimerControlPanel from '@/components/TimerControlPanel.vue'
 
 import { ensureFields, calculateRow } from '@/js/utils.js'
 import { initVoices, testNotify, clearAllNotifications } from '@/js/notify.js'
@@ -403,6 +404,9 @@ onMounted(() => {
       <!-- Toast -->
       <Toast ref="toastRef" />
     </div>
+
+    <!-- 定时器控制面板（浮动） -->
+    <TimerControlPanel />
   </div>
 </template>
 

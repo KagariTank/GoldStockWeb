@@ -2,19 +2,35 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { formatCode } from '@/js/utils.js'
 import { calcDividendFields, checkDividendAlerts } from '@/js/dividend.js'
 import { initAudio, fireNotify } from '@/js/notify.js'
+import { createAutoRefreshTimer } from './useTimerManager.js'
 
 // State
 const dividendInputCodes = ref('')
 const dividendStockList = ref([])
 const dividendTableData = ref([])
 const dividendLoading = ref(false)
-const autoDividendRefresh = ref(false)
-const dividendCountdown = ref(60)
-const _dividendTimer = ref(null)
-const _dividendCountdownTimer = ref(null)
 const dividendAlertFlags = ref({})
 const currentDividendRate = ref(0)
 const maxDividendRate = ref(10)
+
+// 自动刷新 - 使用统一定时器管理（股息60秒间隔）
+const _dividendTimer = createAutoRefreshTimer('dividend', {
+  onRefresh: () => {
+    if (dividendTableData.value.length > 0 && !dividendLoading.value) {
+      refreshDividendData()
+    }
+  },
+  refreshInterval: 60,
+  countdownFrom: 60,
+  shouldRefresh: () => dividendTableData.value.length > 0 && !dividendLoading.value,
+  onStart: () => {
+    initAudio()
+    refreshDividendData()
+  }
+})
+
+const autoDividendRefresh = _dividendTimer.isActive
+const dividendCountdown = _dividendTimer.countdown
 
 // Is file protocol
 const isFileProtocol = ref(false)
@@ -178,28 +194,7 @@ const refreshDividendData = () => {
 }
 
 const toggleAutoDividendRefresh = () => {
-  if (autoDividendRefresh.value) {
-    autoDividendRefresh.value = false
-    dividendCountdown.value = 60
-    if (_dividendTimer.value) { clearInterval(_dividendTimer.value); _dividendTimer.value = null }
-    if (_dividendCountdownTimer.value) { clearInterval(_dividendCountdownTimer.value); _dividendCountdownTimer.value = null }
-    return
-  }
-
-  initAudio()
-
-  autoDividendRefresh.value = true
-  dividendCountdown.value = 60
-  _dividendCountdownTimer.value = setInterval(() => {
-    dividendCountdown.value--
-    if (dividendCountdown.value <= 0) dividendCountdown.value = 60
-  }, 1000)
-  _dividendTimer.value = setInterval(() => {
-    if (dividendTableData.value.length > 0 && !dividendLoading.value) {
-      refreshDividendData()
-    }
-  }, 60000)
-  refreshDividendData()
+  _dividendTimer.toggle()
 }
 
 const onUpdateDividendPerShareHandler = (row) => {

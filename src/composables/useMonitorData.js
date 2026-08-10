@@ -1,6 +1,7 @@
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref } from 'vue'
 import { formatCode, ensureFields, calculateRow } from '@/js/utils.js'
 import { initAudio, fireNotify, speakAlert } from '@/js/notify.js'
+import { createAutoRefreshTimer } from './useTimerManager.js'
 
 // ===== 单例状态（所有组件共享） =====
 const STORAGE_KEY = 'phi_batch_table_v7'
@@ -8,11 +9,50 @@ const inputCodes = ref('')
 const tableData = ref([])
 const loading = ref(false)
 
-// Auto refresh
-const autoRefresh = ref(false)
-const autoCountdown = ref(30)
-const _autoTimer = ref(null)
-const _countdownTimer = ref(null)
+// Auto refresh - 使用统一定时器管理
+const _monitorTimer = createAutoRefreshTimer('monitor', {
+  onRefresh: () => {
+    if (tableData.value.length > 0 && !loading.value) {
+      refreshAllPrices()
+    }
+  },
+  refreshInterval: 30,
+  countdownFrom: 30,
+  shouldRefresh: () => tableData.value.length > 0 && !loading.value,
+  onStart: () => {
+    initAudio()
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        setTimeout(() => {
+          fireNotify('🔄 自动刷新已开启', '将每 30 秒刷新一次数据，并在触发阈值时发送提醒。', 1, isFileProtocol.value, selectedVoice.value)
+        }, 80)
+      } else if (Notification.permission === 'default') {
+        try {
+          Notification.requestPermission().then(r => {
+            setTimeout(() => {
+              if (r === 'granted') {
+                fireNotify('🔄 自动刷新已开启', '将每 30 秒刷新一次数据，并在触发阈值时发送系统通知。', 1, isFileProtocol.value, selectedVoice.value)
+              } else {
+                speakAlert('自动刷新已开启', '未开启系统通知。触发阈值时将通过站内消息和语音进行提醒。', 1, selectedVoice.value)
+              }
+            }, 200)
+          })
+        } catch (e) {}
+      } else {
+        speakAlert('自动刷新已开启', '通知权限已拒绝。将使用站内消息加语音进行提醒。', 1, selectedVoice.value)
+      }
+    } else {
+      speakAlert('自动刷新已开启', '将每 30 秒刷新一次数据。', 1, selectedVoice.value)
+    }
+    refreshAllPrices()
+  },
+  onStop: () => {
+    // 停止时重置告警状态
+  }
+})
+
+const autoRefresh = _monitorTimer.isActive
+const autoCountdown = _monitorTimer.countdown
 
 // Alert flags
 const alertFlags = ref({})
@@ -291,52 +331,7 @@ const clearAll = () => {
 }
 
 const toggleAutoRefresh = () => {
-  if (autoRefresh.value) {
-    autoRefresh.value = false
-    autoCountdown.value = 30
-    if (_autoTimer.value) { clearInterval(_autoTimer.value); _autoTimer.value = null }
-    if (_countdownTimer.value) { clearInterval(_countdownTimer.value); _countdownTimer.value = null }
-    return
-  }
-
-  initAudio()
-
-  if ('Notification' in window) {
-    if (Notification.permission === 'granted') {
-      setTimeout(() => {
-        fireNotify('🔄 自动刷新已开启', '将每 30 秒刷新一次数据，并在触发阈值时发送提醒。', 1, isFileProtocol.value, selectedVoice)
-      }, 80)
-    } else if (Notification.permission === 'default') {
-      try {
-        Notification.requestPermission().then(r => {
-          setTimeout(() => {
-            if (r === 'granted') {
-              fireNotify('🔄 自动刷新已开启', '将每 30 秒刷新一次数据，并在触发阈值时发送系统通知。', 1, isFileProtocol.value, selectedVoice)
-            } else {
-              speakAlert('自动刷新已开启', '未开启系统通知。触发阈值时将通过站内消息和语音进行提醒。', 1, selectedVoice)
-            }
-          }, 200)
-        })
-      } catch (e) {}
-    } else {
-      speakAlert('自动刷新已开启', '通知权限已拒绝。将使用站内消息加语音进行提醒。', 1, selectedVoice)
-    }
-  } else {
-    speakAlert('自动刷新已开启', '将每 30 秒刷新一次数据。', 1, selectedVoice)
-  }
-
-  autoRefresh.value = true
-  autoCountdown.value = 30
-  _countdownTimer.value = setInterval(() => {
-    autoCountdown.value--
-    if (autoCountdown.value <= 0) autoCountdown.value = 30
-  }, 1000)
-  _autoTimer.value = setInterval(() => {
-    if (tableData.value.length > 0 && !loading.value) {
-      refreshAllPrices()
-    }
-  }, 30000)
-  refreshAllPrices()
+  _monitorTimer.toggle()
 }
 
 // Add position methods

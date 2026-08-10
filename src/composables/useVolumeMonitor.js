@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { fireNotify, initAudio } from '@/js/notify.js'
+import { createAutoRefreshTimer } from './useTimerManager.js'
 
 // ===== 单例状态 =====
 const loading = ref(false)
@@ -28,11 +29,31 @@ let _prevCumulativeDiff = 0     // 上一次的累计差额（亿元）
 let _prevCumulativeTrend = ''   // 上一次的累计差额趋势: 'positive' | 'negative' | ''
 let _prevDiffDirection = ''     // 上一次的差额变化方向: 'increasing' | 'decreasing' | ''
 
-// 自动刷新
-const autoRefresh = ref(false)
-const countdown = ref(30)
-let _timer = null
-let _countdownTimer = null
+// 自动刷新 - 使用统一定时器管理
+const _volumeTimer = createAutoRefreshTimer('volume', {
+  onRefresh: () => {
+    if (!loading.value) fetchData()
+  },
+  refreshInterval: 30,
+  countdownFrom: 30,
+  shouldRefresh: () => !loading.value,
+  onStart: () => {
+    initAudio()
+    _prevTrend = ''
+    _prevCumulativeDiff = 0
+    _prevCumulativeTrend = ''
+    _prevDiffDirection = ''
+  },
+  onStop: () => {
+    _prevTrend = ''
+    _prevCumulativeDiff = 0
+    _prevCumulativeTrend = ''
+    _prevDiffDirection = ''
+  }
+})
+
+const autoRefresh = _volumeTimer.isActive
+const countdown = _volumeTimer.countdown
 
 // ===== 工具函数 =====
 
@@ -441,29 +462,7 @@ async function fetchData() {
 // ===== 自动刷新 =====
 
 function toggleAutoRefresh() {
-  if (autoRefresh.value) {
-    autoRefresh.value = false
-    countdown.value = 30
-    if (_timer) { clearInterval(_timer); _timer = null }
-    if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null }
-    _prevTrend = ''
-    _prevCumulativeDiff = 0
-    _prevCumulativeTrend = ''
-    _prevDiffDirection = ''
-    return
-  }
-
-  initAudio()
-  autoRefresh.value = true
-  countdown.value = 30
-  _countdownTimer = setInterval(() => {
-    countdown.value--
-    if (countdown.value <= 0) countdown.value = 30
-  }, 1000)
-  _timer = setInterval(() => {
-    if (!loading.value) fetchData()
-  }, 30000)
-  fetchData()
+  _volumeTimer.toggle()
 }
 
 // ===== 计算属性 =====

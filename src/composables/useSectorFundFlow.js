@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { fireNotify, initAudio } from '@/js/notify.js'
+import { createAutoRefreshTimer } from './useTimerManager.js'
 
 // ===== 单例状态 =====
 const sectorType = ref('industry') // industry | concept
@@ -7,11 +8,21 @@ const tableData = ref([])
 const loading = ref(false)
 const lastUpdate = ref('')
 
-// 自动刷新
-const autoRefresh = ref(false)
-const countdown = ref(30)
-let _timer = null
-let _countdownTimer = null
+// 自动刷新 - 使用统一定时器管理
+const _sectorTimer = createAutoRefreshTimer('sector', {
+  onRefresh: () => {
+    if (!loading.value) fetchData()
+  },
+  refreshInterval: 30,
+  countdownFrom: 30,
+  shouldRefresh: () => !loading.value,
+  onStart: () => {
+    initAudio()
+  }
+})
+
+const autoRefresh = _sectorTimer.isActive
+const countdown = _sectorTimer.countdown
 
 // 告警
 const alertEnabled = ref(true)
@@ -210,25 +221,7 @@ async function fetchData() {
 
 // 切换自动刷新
 function toggleAutoRefresh() {
-  if (autoRefresh.value) {
-    autoRefresh.value = false
-    countdown.value = 30
-    if (_timer) { clearInterval(_timer); _timer = null }
-    if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null }
-    return
-  }
-
-  initAudio()
-  autoRefresh.value = true
-  countdown.value = 30
-  _countdownTimer = setInterval(() => {
-    countdown.value--
-    if (countdown.value <= 0) countdown.value = 30
-  }, 1000)
-  _timer = setInterval(() => {
-    if (!loading.value) fetchData()
-  }, 30000)
-  fetchData()
+  _sectorTimer.toggle()
 }
 
 // 切换板块类型
