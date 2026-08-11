@@ -7,7 +7,7 @@
         :variant="autoRefresh ? 'success' : 'outline'"
         @click="toggleAutoRefresh"
       >
-        {{ autoRefresh ? `自动刷新 ${countdown}s` : '30s自动刷新' }}
+        {{ autoRefresh ? `自动刷新 ${countdown}s` : `${refreshInterval}s自动刷新` }}
       </Button>
       <Button
         :variant="alertEnabled ? 'default' : 'outline'"
@@ -32,19 +32,21 @@
       <div v-if="showRules" class="border rounded-lg mb-4 p-4 bg-muted/30 text-sm space-y-2">
         <div class="font-medium mb-2">量能监控告警规则（自动刷新时检测，同类告警 3 分钟内不重复）</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-muted-foreground">
-          <div>📉 <span class="text-foreground font-medium">缩量趋势</span>　近5分钟均量为昨日同期 50%-70%</div>
-          <div>📈 <span class="text-foreground font-medium">放量趋势</span>　近5分钟均量为昨日同期 130%-200%</div>
-          <div>⚠️ <span class="text-foreground font-medium">持续极端缩量</span>　近5分钟均量 < 昨日同期 50%</div>
-          <div>🔥 <span class="text-foreground font-medium">持续极端放量</span>　近5分钟均量 > 昨日同期 200%</div>
+          <div>📉 <span class="text-foreground font-medium">缩量趋势</span>　今日累计为昨日 50%-70%</div>
+          <div>📈 <span class="text-foreground font-medium">放量趋势</span>　今日累计为昨日 130%-200%</div>
+          <div>⚠️ <span class="text-foreground font-medium">极端缩量</span>　今日累计 < 昨日 50%</div>
+          <div>🔥 <span class="text-foreground font-medium">极端放量</span>　今日累计 > 昨日 200%</div>
         </div>
-        <div class="font-medium mt-3 mb-2">趋势变化告警（基于增量比率，更灵敏）</div>
+        <div class="font-medium mt-3 mb-2">趋势变化告警（先看累计比率判断整体，再看增量比率判断变化）</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-muted-foreground">
           <div>📈 <span class="text-foreground font-medium">绿转红</span>　累计比率由 <1 转为 >1（缩量转放量）</div>
           <div>📉 <span class="text-foreground font-medium">红转绿</span>　累计比率由 >1 转为 <1（放量转缩量）</div>
-          <div>🚀 <span class="text-foreground font-medium">放量加速</span>　近5分钟增量比率上升超 5%</div>
-          <div>⚠️ <span class="text-foreground font-medium">缩量加速</span>　近5分钟增量比率下降超 5%</div>
-          <div>📉 <span class="text-foreground font-medium">放量减弱</span>　近5分钟增量比率下降但仍 >100%</div>
-          <div>📈 <span class="text-foreground font-medium">缩量减弱</span>　近5分钟增量比率回升但仍 <100%</div>
+          <div>🚀 <span class="text-foreground font-medium">放量加速</span>　整体放量 + 近5分钟增量加速 > 5%</div>
+          <div>⚠️ <span class="text-foreground font-medium">缩量加速</span>　整体缩量 + 近5分钟增量下降 > 5%</div>
+          <div>📉 <span class="text-foreground font-medium">放量减弱</span>　整体放量 + 近5分钟增速放缓 > 5%</div>
+          <div>📈 <span class="text-foreground font-medium">缩量减弱</span>　整体缩量 + 近5分钟缩量收窄 > 5%</div>
+          <div>📈 <span class="text-foreground font-medium">温和放量</span>　整体接近正常 + 近5分钟放量加速</div>
+          <div>📉 <span class="text-foreground font-medium">温和缩量</span>　整体接近正常 + 近5分钟缩量加速</div>
         </div>
         <div class="font-medium mt-3 mb-2">极端比率告警（基于累计比率）</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-muted-foreground">
@@ -176,6 +178,7 @@ const {
   alertEnabled,
   autoRefresh,
   countdown,
+  refreshInterval,
   todayTotal,
   yesterdayTotal,
   predictTotal,

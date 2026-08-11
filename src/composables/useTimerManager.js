@@ -95,7 +95,27 @@ export function createAutoRefreshTimer(name, config) {
     toggle,
     resetCountdown,
     refreshInterval,
-    name
+    name,
+    updateInterval(newInterval) {
+      if (!isActive.value) return
+      // 停止旧的 interval
+      if (_intervalId) {
+        clearInterval(_intervalId)
+        _intervalId = null
+      }
+      // 更新配置
+      refreshInterval.value = newInterval
+      countdownFrom = newInterval
+      // 启动新的 interval
+      _intervalId = setInterval(() => {
+        if (_globalPause.value) return
+        if (!shouldRefresh || shouldRefresh()) {
+          onRefresh && onRefresh()
+        }
+      }, newInterval * 1000)
+      // 更新存储的配置
+      _timers.set(name, { handle, config: { refreshInterval: newInterval, countdownFrom: newInterval } })
+    }
   }
 
   _timers.set(name, { handle, config: { refreshInterval, countdownFrom } })
