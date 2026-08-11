@@ -140,7 +140,7 @@ const props = defineProps({
 })
 
 const visible = ref(props.defaultOpen)
-const position = ref({ x: window.innerWidth - 320, y: 80 })
+const position = ref({ x: window.innerWidth - 430, y: 500 })
 
 const { timerStats, getAllTimers, pauseAll, resumeAll, stopAll } = useTimerManager()
 
