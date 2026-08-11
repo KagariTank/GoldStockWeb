@@ -36,7 +36,7 @@ const _volumeTimer = createAutoRefreshTimer('volume', {
     if (!loading.value) fetchData()
   },
   refreshInterval: 15,
-  countdownFrom: 15,
+  initialCountdown: 15,
   shouldRefresh: () => !loading.value,
   onStart: () => {
     initAudio()

@@ -30,14 +30,15 @@ export function createAutoRefreshTimer(name, config) {
   const {
     onRefresh,
     refreshInterval = 30,
-    countdownFrom = 30,
+    initialCountdown = 30,
     onStart,
     onStop,
     shouldRefresh
   } = config
 
   const isActive = ref(false)
-  const countdown = ref(countdownFrom)
+  const countdown = ref(initialCountdown)
+  const countdownFrom = ref(initialCountdown)
 
   let _intervalId = null
   let _countdownId = null
@@ -46,12 +47,12 @@ export function createAutoRefreshTimer(name, config) {
     if (isActive.value) return
     if (onStart) onStart()
     isActive.value = true
-    countdown.value = countdownFrom
+    countdown.value = countdownFrom.value
 
     _countdownId = setInterval(() => {
       if (_globalPause.value) return
       countdown.value--
-      if (countdown.value <= 0) countdown.value = countdownFrom
+      if (countdown.value <= 0) countdown.value = countdownFrom.value
     }, 1000)
 
     _intervalId = setInterval(() => {
@@ -59,7 +60,7 @@ export function createAutoRefreshTimer(name, config) {
       if (!shouldRefresh || shouldRefresh()) {
         onRefresh && onRefresh()
       }
-    }, refreshInterval * 1000)
+    }, refreshInterval.value * 1000)
 
     if (!_globalPause.value) {
       onRefresh && onRefresh()
@@ -71,7 +72,7 @@ export function createAutoRefreshTimer(name, config) {
   function stop() {
     if (!isActive.value) return
     isActive.value = false
-    countdown.value = countdownFrom
+    countdown.value = countdownFrom.value
     if (_intervalId) { clearInterval(_intervalId); _intervalId = null }
     if (_countdownId) { clearInterval(_countdownId); _countdownId = null }
     if (onStop) onStop()
@@ -84,7 +85,7 @@ export function createAutoRefreshTimer(name, config) {
   }
 
   function resetCountdown() {
-    countdown.value = countdownFrom
+    countdown.value = countdownFrom.value
   }
 
   const handle = {
@@ -105,7 +106,7 @@ export function createAutoRefreshTimer(name, config) {
       }
       // 更新配置
       refreshInterval.value = newInterval
-      countdownFrom = newInterval
+      countdownFrom.value = newInterval
       // 启动新的 interval
       _intervalId = setInterval(() => {
         if (_globalPause.value) return
@@ -114,11 +115,11 @@ export function createAutoRefreshTimer(name, config) {
         }
       }, newInterval * 1000)
       // 更新存储的配置
-      _timers.set(name, { handle, config: { refreshInterval: newInterval, countdownFrom: newInterval } })
+      _timers.set(name, { handle, config: { refreshInterval: newInterval, initialCountdown: newInterval } })
     }
   }
 
-  _timers.set(name, { handle, config: { refreshInterval, countdownFrom } })
+  _timers.set(name, { handle, config: { refreshInterval, initialCountdown } })
 
   return handle
 }

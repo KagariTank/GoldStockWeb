@@ -17,7 +17,7 @@ const _monitorTimer = createAutoRefreshTimer('monitor', {
     }
   },
   refreshInterval: 30,
-  countdownFrom: 30,
+  initialCountdown: 30,
   shouldRefresh: () => tableData.value.length > 0 && !loading.value,
   onStart: () => {
     initAudio()
