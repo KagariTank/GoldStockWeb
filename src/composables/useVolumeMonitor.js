@@ -12,6 +12,9 @@ const points = ref([])         // [[ts, turnover, turnover_pre, turnover_change]
 // 分钟级数据（API 返回的是累计值，不需再次累加）
 const minuteData = ref([])     // [{ time, todayVol, yestVol, turnoverChange, ratio }]
 
+// 上证指数分时数据
+const indexData = ref([])      // [{ time, close, average }]
+
 // 趋势状态
 const trendStatus = ref('')    // 'shrinking' | 'expanding' | 'stable' | ''
 const trendLabel = ref('')
@@ -28,6 +31,8 @@ let _prevCumulativeDiff = 0     // 上一次的累计差额（亿元）
 let _prevCumulativeRatio = 1    // 上一次的累计比率（今日/昨日）
 let _prevCumulativeTrend = ''   // 上一次的累计差额趋势: 'positive' | 'negative' | ''
 let _prevDiffDirection = ''     // 上一次的差额变化方向: 'increasing' | 'decreasing' | ''
+let _prevCloseVsAvg = ''       // 上一次收盘价与均价关系: 'above' | 'below' | ''
+let _lastCrossTime = 0         // 上次交叉检测时间戳
 
 // 自动刷新 - 使用统一定时器管理
 const _volumeTimer = createAutoRefreshTimer('volume', {
@@ -44,6 +49,8 @@ const _volumeTimer = createAutoRefreshTimer('volume', {
     _prevCumulativeRatio = 1
     _prevCumulativeTrend = ''
     _prevDiffDirection = ''
+    _prevCloseVsAvg = ''
+    _lastCrossTime = 0
   },
   onStop: () => {
     _prevTrend = ''
@@ -51,6 +58,8 @@ const _volumeTimer = createAutoRefreshTimer('volume', {
     _prevCumulativeRatio = 1
     _prevCumulativeTrend = ''
     _prevDiffDirection = ''
+    _prevCloseVsAvg = ''
+    _lastCrossTime = 0
   }
 })
 
@@ -440,7 +449,104 @@ function checkCumulativeDiffAlert() {
   _prevDiffDirection = currentDirection
 }
 
+// 上证指数加权线与未加权线交叉检测
+function checkIndexCrossAlert() {
+  if (!alertEnabled.value) return
+  const data = indexData.value
+  if (!data || data.length < 2) return
+
+  const validPoints = data
+    .map((d, i) => ({ ...d, idx: i }))
+    .filter(d => d.close != null && d.average != null)
+
+  if (validPoints.length < 2) return
+
+  // 获取当前量能状态描述
+  const volDesc = getVolumeStatusDesc()
+
+  for (let i = validPoints.length - 1; i >= 1; i--) {
+    const curr = validPoints[i]
+    const prev = validPoints[i - 1]
+
+    const currDiff = curr.close - curr.average
+    const prevDiff = prev.close - prev.average
+
+    // 加权线从下方穿越未加权线
+    if (prevDiff <= 0 && currDiff > 0) {
+      if (_canAlert('index_weighted_cross_up')) {
+        _notify('🟢 上证指数加权线上穿', `加权线 ${curr.close.toFixed(2)} 上穿未加权线 ${curr.average.toFixed(2)}，当前${volDesc}`, 2)
+      }
+      _prevCloseVsAvg = 'above'
+      _lastCrossTime = curr.time
+      return
+    }
+
+    // 加权线从上方穿越未加权线
+    if (prevDiff >= 0 && currDiff < 0) {
+      if (_canAlert('index_weighted_cross_down')) {
+        _notify('🔴 上证指数加权线下穿', `加权线 ${curr.close.toFixed(2)} 下穿未加权线 ${curr.average.toFixed(2)}，当前${volDesc}`, 2)
+      }
+      _prevCloseVsAvg = 'below'
+      _lastCrossTime = curr.time
+      return
+    }
+  }
+
+  const last = validPoints[validPoints.length - 1]
+  _prevCloseVsAvg = last.close >= last.average ? 'above' : 'below'
+}
+
+function getVolumeStatusDesc() {
+  const s = trendStatus.value
+  if (s === 'expanding' || s === 'extreme_expanding') return '放量中'
+  if (s === 'shrinking' || s === 'extreme_shrinking') return '缩量中'
+  return '量能平稳'
+}
+
 // ===== 数据拉取 =====
+
+// JSONP 方式拉取上证指数分时数据
+function fetchIndexData() {
+  return new Promise((resolve) => {
+    const callbackName = `__idx_cb_${Date.now()}_${Math.floor(Math.random() * 10000)}`
+    const script = document.createElement('script')
+    const timer = setTimeout(() => {
+      cleanup()
+      resolve([])
+    }, 10000)
+
+    function cleanup() {
+      clearTimeout(timer)
+      delete window[callbackName]
+      script.remove()
+    }
+
+    window[callbackName] = (data) => {
+      cleanup()
+      const trends = data?.data?.trends || []
+      const parsed = trends.map(line => {
+        const parts = line.split(',')
+        if (parts.length < 8) return null
+        const timeStr = parts[0].substring(11) // "2026-08-11 13:18" -> "13:18"
+        return {
+          time: timeStr,
+          close: parseFloat(parts[2]),   // 收盘价（蓝线）
+          average: parseFloat(parts[7])  // 均价（黄线）
+        }
+      }).filter(Boolean)
+      resolve(parsed)
+    }
+
+    const cbParam = encodeURIComponent(callbackName)
+    const secid = '1.000001' // 上证指数
+    script.src = `https://push2his.eastmoney.com/api/qt/stock/trends2/get?fields1=f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13&fields2=f51,f52,f53,f54,f55,f56,f57,f58&ut=fa5fd1943c7b386f172d6893dbfba10b&iscr=0&ndays=1&secid=${secid}&cb=${cbParam}&_=${Date.now()}`
+    script.onerror = () => {
+      cleanup()
+      resolve([])
+    }
+    document.head.appendChild(script)
+  })
+}
 
 async function fetchData() {
   if (loading.value) return
@@ -481,6 +587,24 @@ async function fetchData() {
     // 计算分钟增量
     minuteData.value = computeMinuteData(raw)
 
+    // 拉取上证指数分时数据并匹配到时间轴
+    const idxRaw = await fetchIndexData()
+    if (idxRaw.length > 0) {
+      const idxMap = new Map()
+      for (const item of idxRaw) {
+        idxMap.set(item.time, item)
+      }
+      indexData.value = minuteData.value.map(d => {
+        const idx = idxMap.get(d.time)
+        if (!idx || !d.hasData || d.isFuture) {
+          return { time: d.time, close: null, average: null }
+        }
+        return { time: d.time, close: idx.close, average: idx.average }
+      })
+    } else {
+      indexData.value = minuteData.value.map(d => ({ time: d.time, close: null, average: null }))
+    }
+
     // 趋势分析
     analyzeTrend()
 
@@ -489,6 +613,9 @@ async function fetchData() {
 
     // 累计差额告警
     checkCumulativeDiffAlert()
+
+    // 上证指数金叉/死叉检测
+    checkIndexCrossAlert()
 
     const now = new Date()
     lastUpdate.value = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
@@ -569,6 +696,7 @@ export function useVolumeMonitor(voiceRef) {
     header,
     points,
     minuteData,
+    indexData,
     trendStatus,
     trendLabel,
     trendColor,

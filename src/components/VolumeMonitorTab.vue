@@ -48,6 +48,11 @@
           <div>🔥 <span class="text-foreground font-medium">显著放量</span>　累计比率 > 150% 昨日同期</div>
           <div>💧 <span class="text-foreground font-medium">极端缩量</span>　累计比率 < 50% 昨日同期</div>
         </div>
+        <div class="font-medium mt-3 mb-2">上证指数加权/未加权线信号</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-muted-foreground">
+          <div>🟢 <span class="text-foreground font-medium">加权线上穿</span>　加权线（蓝）上穿未加权线（黄），权重股领涨</div>
+          <div>🔴 <span class="text-foreground font-medium">加权线下穿</span>　加权线（蓝）下穿未加权线（黄），权重股领跌</div>
+        </div>
         <div class="font-medium mt-3 mb-1 text-muted-foreground">参考标准：正常 80%-150%，温和放量 150%-250%，显著放量 >250%，显著缩量 50%-80%，极端缩量 <50%</div>
       </div>
 
@@ -93,12 +98,12 @@
         <div ref="chartRef" class="w-full" style="height: 350px"></div>
       </div>
 
-      <!-- ECharts 成交额变动图 -->
+      <!-- ECharts 成交额变动图 + 上证指数分时 -->
       <div v-if="minuteData.length > 0" class="border rounded-lg mb-4 p-2">
         <div class="px-2 mb-2">
-          <span class="text-sm font-medium">成交额变动</span>
+          <span class="text-sm font-medium">成交额变动 & 上证指数分时</span>
         </div>
-        <div ref="diffChartRef" class="w-full" style="height: 250px"></div>
+        <div ref="diffChartRef" class="w-full" style="height: 300px"></div>
       </div>
 
       <!-- 分钟级数据表格 -->
@@ -163,6 +168,7 @@ const {
   header,
   points,
   minuteData,
+  indexData,
   trendStatus,
   trendLabel,
   trendColor,
@@ -330,6 +336,26 @@ const diffChartOption = computed(() => {
     return +(d.turnoverChange / 1e8).toFixed(2)
   })
 
+  // 上证指数分时数据
+  const idxData = indexData.value
+  const idxClose = idxData.map(d => d.close)
+  const idxAverage = idxData.map(d => d.average)
+
+  // 动态计算上证指数Y轴区间
+  const idxValues = idxData
+    .filter(d => d.close != null && d.average != null)
+    .flatMap(d => [d.close, d.average])
+  let idxMin = 0
+  let idxMax = 5000
+  if (idxValues.length > 0) {
+    const rawMin = Math.min(...idxValues)
+    const rawMax = Math.max(...idxValues)
+    const range = rawMax - rawMin || rawMax * 0.01 || 10
+    const pad = range * 0.15
+    idxMin = Math.floor(rawMin - pad)
+    idxMax = Math.ceil(rawMax + pad)
+  }
+
   return {
     tooltip: {
       trigger: 'axis',
@@ -339,19 +365,34 @@ const diffChartOption = computed(() => {
       textStyle: { color: '#fff', fontSize: 12 },
       padding: [8, 12],
       formatter: (params) => {
-        const p = params[0]
-        if (p.value === null || p.value === undefined) {
-          return `<div style="font-weight:600;margin-bottom:4px">${p.axisValue}</div>
-                  <div>变动额: <span style="color:#999">无数据</span></div>`
+        let html = `<div style="font-weight:600;margin-bottom:4px">${params[0].axisValue}</div>`
+        for (const p of params) {
+          const val = p.value
+          if (val === null || val === undefined || val === '-' || isNaN(val)) {
+            html += `<div>${p.marker} ${p.seriesName}: <span style="color:#999">无数据</span></div>`
+          } else {
+            let unit = ''
+            if (p.seriesName === '加权线' || p.seriesName === '未加权线') {
+              unit = ''
+              html += `<div>${p.marker} ${p.seriesName}: <span style="font-weight:700;color:${p.color}">${val.toFixed(2)}</span></div>`
+            } else {
+              const sign = val >= 0 ? '+' : ''
+              const color = val >= 0 ? '#ff6b6b' : '#26de81'
+              html += `<div>${p.marker} ${p.seriesName}: <span style="font-weight:700;color:${color}">${sign}${val}亿</span></div>`
+            }
+          }
         }
-        const sign = p.value >= 0 ? '+' : ''
-        const color = p.value >= 0 ? '#ff6b6b' : '#26de81'
-        const label = p.value >= 0 ? '放量' : '缩量'
-        return `<div style="font-weight:600;margin-bottom:4px">${p.axisValue}</div>
-                <div>变动额: <span style="font-weight:700;color:${color}">${sign}${p.value}亿</span>（${label}）</div>`
+        return html
       }
     },
-    grid: { left: 60, right: 25, top: 15, bottom: 30 },
+    legend: {
+      data: ['成交额变动', '加权线', '未加权线'],
+      top: 5,
+      textStyle: { fontSize: 12, color: '#666' },
+      itemWidth: 14,
+      itemHeight: 10
+    },
+    grid: { left: 60, right: 60, top: 35, bottom: 30 },
     xAxis: {
       type: 'category',
       data: times,
@@ -372,42 +413,86 @@ const diffChartOption = computed(() => {
       axisLine: { lineStyle: { color: '#ccc' } },
       axisTick: { show: false }
     },
-    yAxis: {
-      type: 'value',
-      name: '亿元',
-      nameTextStyle: { fontSize: 13, color: '#444' },
-      axisLabel: { fontSize: 13, color: '#444' },
-      splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }
-    },
-    series: [{
-      type: 'bar',
-      data: diffs.map(v => ({
-        value: v,
-        itemStyle: {
-          color: v >= 0
-            ? new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: '#ff6b6b' },
-                { offset: 1, color: '#ee5a52' }
-              ])
-            : new echarts.graphic.LinearGradient(0, 1, 0, 0, [
-                { offset: 0, color: '#26de81' },
-                { offset: 1, color: '#20bf6b' }
-              ]),
-          borderRadius: v >= 0 ? [0, 0, 2, 2] : [2, 2, 0, 0]
-        }
-      })),
-      barWidth: '50%',
-      markLine: {
-        silent: true,
-        symbol: 'none',
-        lineStyle: { color: '#ccc', type: 'solid', width: 1 },
-        data: [{ yAxis: 0 }],
-        label: { show: false }
+    yAxis: [
+      {
+        type: 'value',
+        name: '亿元',
+        nameTextStyle: { fontSize: 12, color: '#444' },
+        axisLabel: { fontSize: 12, color: '#444' },
+        splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }
       },
-      animationDuration: 200,
-      animationEasing: 'linear',
-      animationDelay: 0
-    }]
+      {
+        type: 'value',
+        name: '指数',
+        min: idxMin,
+        max: idxMax,
+        nameTextStyle: { fontSize: 12, color: '#1890ff' },
+        axisLabel: { fontSize: 12, color: '#1890ff' },
+        splitLine: { show: false }
+      }
+    ],
+    series: [
+      {
+        name: '成交额变动',
+        type: 'bar',
+        data: diffs.map(v => ({
+          value: v,
+          itemStyle: {
+            color: v >= 0
+              ? new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                  { offset: 0, color: '#ff6b6b' },
+                  { offset: 1, color: '#ee5a52' }
+                ])
+              : new echarts.graphic.LinearGradient(0, 1, 0, 0, [
+                  { offset: 0, color: '#26de81' },
+                  { offset: 1, color: '#20bf6b' }
+                ]),
+            borderRadius: v >= 0 ? [0, 0, 2, 2] : [2, 2, 0, 0]
+          }
+        })),
+        barWidth: '50%',
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          lineStyle: { color: '#ccc', type: 'solid', width: 1 },
+          data: [{ yAxis: 0 }],
+          label: { show: false }
+        },
+        animationDuration: 200,
+        animationEasing: 'linear',
+        animationDelay: 0
+      },
+      {
+        name: '加权线',
+        type: 'line',
+        data: idxClose,
+        yAxisIndex: 1,
+        smooth: true,
+        symbol: 'none',
+        showSymbol: false,
+        connectNulls: true,
+        lineStyle: { width: 1.5, color: '#1890ff' },
+        itemStyle: { color: '#1890ff' },
+        emphasis: { focus: 'series' },
+        animationDuration: 300,
+        animationEasing: 'linear'
+      },
+      {
+        name: '未加权线',
+        type: 'line',
+        data: idxAverage,
+        yAxisIndex: 1,
+        smooth: true,
+        symbol: 'none',
+        showSymbol: false,
+        connectNulls: true,
+        lineStyle: { width: 1.5, color: '#faad14' },
+        itemStyle: { color: '#faad14' },
+        emphasis: { focus: 'series' },
+        animationDuration: 300,
+        animationEasing: 'linear'
+      }
+    ]
   }
 })
 
