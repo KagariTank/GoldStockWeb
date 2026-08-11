@@ -26,6 +26,7 @@ const COOLDOWN_MS = 3 * 60 * 1000  // 3 分钟冷却
 let _prevTrend = ''             // 上一次的趋势状态
 let _prevCumulativeDiff = 0     // 上一次的累计差额（亿元）
 let _prevCumulativeRatio = 1    // 上一次的累计比率（今日/昨日）
+let _prevIncrementalRatio = 1  // 上一次的增量比率（今日增量/昨日增量）
 let _prevCumulativeTrend = ''   // 上一次的累计差额趋势: 'positive' | 'negative' | ''
 let _prevDiffDirection = ''     // 上一次的差额变化方向: 'increasing' | 'decreasing' | ''
 
@@ -42,6 +43,7 @@ const _volumeTimer = createAutoRefreshTimer('volume', {
     _prevTrend = ''
     _prevCumulativeDiff = 0
     _prevCumulativeRatio = 1
+    _prevIncrementalRatio = 1
     _prevCumulativeTrend = ''
     _prevDiffDirection = ''
   },
@@ -49,6 +51,7 @@ const _volumeTimer = createAutoRefreshTimer('volume', {
     _prevTrend = ''
     _prevCumulativeDiff = 0
     _prevCumulativeRatio = 1
+    _prevIncrementalRatio = 1
     _prevCumulativeTrend = ''
     _prevDiffDirection = ''
   }
@@ -328,115 +331,129 @@ function checkCumulativeDiffAlert() {
   if (!alertEnabled.value) return
   const data = minuteData.value
   
-  const validData = data.filter(d => d.hasData && !d.isFuture)
+  const validData = data.filter(d => d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0)
   if (validData.length < WINDOW) return
 
-  // todayVol 和 yestVol 已经是累计值，取最后一个即可
+  // 1. 计算累计值（用于极端比率告警）
   const todayCum = validData[validData.length - 1].todayVol || 0
   const yestCum = validData[validData.length - 1].yestVol || 0
-
-  const cumulativeDiffYi = (todayCum - yestCum) / 1e8
-
   const cumulativeRatio = yestCum > 0 ? todayCum / yestCum : 1
 
-  let currentTrend = ''
-  if (cumulativeRatio > 1.05) currentTrend = 'positive'
-  else if (cumulativeRatio < 0.95) currentTrend = 'negative'
+  // 2. 计算最近 WINDOW 分钟的增量（用于趋势变化判断）
+  const recent = validData.slice(-WINDOW)
+  const firstRecent = recent[0]
+  const lastRecent = recent[recent.length - 1]
+  
+  const todayIncrement = lastRecent.todayVol - firstRecent.todayVol
+  const yestIncrement = lastRecent.yestVol - firstRecent.yestVol
+  
+  // 增量比率：最近窗口的今日增量 / 昨日同期增量
+  const incrementalRatio = yestIncrement > 0 ? todayIncrement / yestIncrement : 1
 
+  // 3. 判断当前趋势（基于增量比率，更敏感）
+  let currentTrend = ''
+  if (incrementalRatio > 1.15) currentTrend = 'positive'
+  else if (incrementalRatio < 0.85) currentTrend = 'negative'
+
+  // 4. 判断变化方向（基于增量比率的变化）
   let currentDirection = ''
-  const diffChange = cumulativeRatio - _prevCumulativeRatio
-  if (Math.abs(diffChange) < 0.02) {
+  const ratioChange = incrementalRatio - _prevIncrementalRatio
+  if (Math.abs(ratioChange) < 0.03) {
     currentDirection = 'stable'
-  } else if (diffChange > 0) {
+  } else if (ratioChange > 0) {
     currentDirection = 'increasing'
   } else {
     currentDirection = 'decreasing'
   }
 
-  // 1. 颜色转换（红转绿/绿转红）
-  if (_prevCumulativeTrend && _prevCumulativeTrend !== currentTrend) {
-    if (currentTrend === 'negative') {
+  // 5. 颜色转换（红转绿/绿转红）—— 基于累计比率
+  let cumulativeTrend = ''
+  if (cumulativeRatio > 1.05) cumulativeTrend = 'positive'
+  else if (cumulativeRatio < 0.95) cumulativeTrend = 'negative'
+
+  if (_prevCumulativeTrend && _prevCumulativeTrend !== cumulativeTrend) {
+    if (cumulativeTrend === 'negative') {
       if (_canAlert('diff_pos_to_neg')) {
         _notify('📉 量能趋势由强转弱', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，资金流出加速`, 2)
       }
-    } else if (currentTrend === 'positive') {
+    } else if (cumulativeTrend === 'positive') {
       if (_canAlert('diff_neg_to_pos')) {
         _notify('📈 量能趋势由弱转强', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，资金流入加速`, 2)
       }
     }
   }
 
-  // 2. 持续放量加剧（红色越来越高，增速加快）
+  // 6. 放量加速（增量比率上升，且仍在高位）
   if (currentTrend === 'positive' && currentDirection === 'increasing') {
-    const ratioChange = _prevCumulativeRatio > 0
-      ? ((cumulativeRatio - _prevCumulativeRatio) / _prevCumulativeRatio) * 100
+    const pctChange = _prevIncrementalRatio > 0
+      ? ((incrementalRatio - _prevIncrementalRatio) / _prevIncrementalRatio) * 100
       : 0
-    if (ratioChange > 10 && cumulativeRatio > 1.15) {
+    if (pctChange > 5) {
       if (_canAlert('diff_strong_increase')) {
-        _notify('🚀 放量加速', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，较上次加速 ${ratioChange.toFixed(0)}%`, 2)
+        _notify('🚀 放量加速', `近${WINDOW}分钟量能为昨日 ${(incrementalRatio * 100).toFixed(0)}%，较上次加速 ${pctChange.toFixed(0)}%`, 2)
       }
     }
   }
 
-  // 3. 放量减弱（红色柱子变矮，增速放缓）——放宽触发条件
+  // 7. 放量减弱（增量比率下降，但仍在放量区间）
   if (currentTrend === 'positive' && currentDirection === 'decreasing') {
-    const ratioChange = _prevCumulativeRatio > 0
-      ? ((_prevCumulativeRatio - cumulativeRatio) / _prevCumulativeRatio) * 100
+    const pctChange = _prevIncrementalRatio > 0
+      ? ((_prevIncrementalRatio - incrementalRatio) / _prevIncrementalRatio) * 100
       : 0
-    // 只要累积比率仍在 1.05 以上且增速放缓（相对变化 >= 3%）即触发
-    if (ratioChange > 3 && cumulativeRatio > 1.05) {
+    if (pctChange > 5) {
       if (_canAlert('diff_positive_decreasing')) {
-        _notify('📉 放量减弱', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，增速放缓 ${ratioChange.toFixed(0)}%，资金流入放缓`, 2)
+        _notify('📉 放量减弱', `近${WINDOW}分钟量能为昨日 ${(incrementalRatio * 100).toFixed(0)}%，增速放缓 ${pctChange.toFixed(0)}%`, 2)
       }
     }
   }
 
-  // 4. 持续缩量加剧（绿色越来越深，缩量加速）
+  // 8. 缩量加速（增量比率继续下降）
   if (currentTrend === 'negative' && currentDirection === 'decreasing') {
-    const ratioChange = _prevCumulativeRatio > 0
-      ? ((_prevCumulativeRatio - cumulativeRatio) / _prevCumulativeRatio) * 100
+    const pctChange = _prevIncrementalRatio > 0
+      ? ((_prevIncrementalRatio - incrementalRatio) / _prevIncrementalRatio) * 100
       : 0
-    if (ratioChange > 10 && cumulativeRatio < 0.85) {
+    if (pctChange > 5) {
       if (_canAlert('diff_strong_decrease')) {
-        _notify('⚠️ 缩量加速', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，缩量加速 ${ratioChange.toFixed(0)}%`, 1)
+        _notify('⚠️ 缩量加速', `近${WINDOW}分钟量能仅为昨日 ${(incrementalRatio * 100).toFixed(0)}%，缩量加剧 ${pctChange.toFixed(0)}%`, 1)
       }
     }
   }
 
-  // 5. 缩量减弱（绿色柱子变矮，缩量收窄）
+  // 9. 缩量减弱（增量比率回升，但仍在缩量区间）
   if (currentTrend === 'negative' && currentDirection === 'increasing') {
-    const ratioChange = _prevCumulativeRatio > 0
-      ? ((cumulativeRatio - _prevCumulativeRatio) / _prevCumulativeRatio) * 100
+    const pctChange = _prevIncrementalRatio > 0
+      ? ((incrementalRatio - _prevIncrementalRatio) / _prevIncrementalRatio) * 100
       : 0
-    if (ratioChange > 8 && cumulativeRatio < 0.95) {
+    if (pctChange > 5) {
       if (_canAlert('diff_negative_decreasing')) {
-        _notify('📈 缩量减弱', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，缩量收窄 ${ratioChange.toFixed(0)}%，资金流出放缓`, 1)
+        _notify('📈 缩量减弱', `近${WINDOW}分钟量能为昨日 ${(incrementalRatio * 100).toFixed(0)}%，缩量收窄 ${pctChange.toFixed(0)}%`, 2)
       }
     }
   }
 
-  // 6. 极端比率告警（基于比率而非绝对值）
+  // 10. 极端比率告警（基于累计比率）
   if (cumulativeRatio > 2.0) {
     if (_canAlert('diff_extreme_expand')) {
-      _notify('🔥 极端放量', `今日累计量能达昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投极度活跃`, 2)
+      _notify('🔥 极端放量', `今日累计量能达昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 2)
     }
   } else if (cumulativeRatio > 1.5) {
     if (_canAlert('diff_significant_expand')) {
-      _notify('📊 显著放量', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投活跃`, 1)
+      _notify('📊 显著放量', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 1)
     }
   } else if (cumulativeRatio < 0.3) {
     if (_canAlert('diff_extreme_shrink')) {
-      _notify('⚠️ 极端缩量', `今日累计量能仅为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投极度清淡`, 1)
+      _notify('⚠️ 极端缩量', `今日累计量能仅为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 1)
     }
   } else if (cumulativeRatio < 0.5) {
     if (_canAlert('diff_significant_shrink')) {
-      _notify('📊 显著缩量', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投清淡`, 1)
+      _notify('📊 显著缩量', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 1)
     }
   }
 
-  _prevCumulativeDiff = cumulativeDiffYi
+  // 更新状态
   _prevCumulativeRatio = cumulativeRatio
-  if (currentTrend) _prevCumulativeTrend = currentTrend
+  _prevIncrementalRatio = incrementalRatio
+  if (cumulativeTrend) _prevCumulativeTrend = cumulativeTrend
   _prevDiffDirection = currentDirection
 }
 

@@ -37,18 +37,22 @@
           <div>⚠️ <span class="text-foreground font-medium">持续极端缩量</span>　近5分钟均量 < 昨日同期 50%</div>
           <div>🔥 <span class="text-foreground font-medium">持续极端放量</span>　近5分钟均量 > 昨日同期 200%</div>
         </div>
-        <div class="font-medium mt-3 mb-2">成交额变动（红=放量，绿=缩量）</div>
+        <div class="font-medium mt-3 mb-2">趋势变化告警（基于增量比率，更灵敏）</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-muted-foreground">
           <div>📈 <span class="text-foreground font-medium">绿转红</span>　累计比率由 <1 转为 >1（缩量转放量）</div>
           <div>📉 <span class="text-foreground font-medium">红转绿</span>　累计比率由 >1 转为 <1（放量转缩量）</div>
-          <div>🚀 <span class="text-foreground font-medium">放量加速</span>　累计比率仍在上升，增速超 10%</div>
-          <div>⚠️ <span class="text-foreground font-medium">缩量加速</span>　累计比率仍在下降，降幅超 10%</div>
-          <div>📉 <span class="text-foreground font-medium">放量减弱</span>　累计比率仍 >1 但增速放缓（资金流入减弱）</div>
-          <div>📈 <span class="text-foreground font-medium">缩量减弱</span>　累计比率仍 <1 但缩量收窄（资金流出减弱）</div>
-          <div>🔥 <span class="text-foreground font-medium">显著放量</span>　累计比率 > 150% 昨日同期</div>
-          <div>💧 <span class="text-foreground font-medium">极端缩量</span>　累计比率 < 50% 昨日同期</div>
+          <div>🚀 <span class="text-foreground font-medium">放量加速</span>　近5分钟增量比率上升超 5%</div>
+          <div>⚠️ <span class="text-foreground font-medium">缩量加速</span>　近5分钟增量比率下降超 5%</div>
+          <div>📉 <span class="text-foreground font-medium">放量减弱</span>　近5分钟增量比率下降但仍 >100%</div>
+          <div>📈 <span class="text-foreground font-medium">缩量减弱</span>　近5分钟增量比率回升但仍 <100%</div>
         </div>
-        <div class="font-medium mt-3 mb-1 text-muted-foreground">参考标准：正常 80%-150%，温和放量 150%-250%，显著放量 >250%，显著缩量 50%-80%，极端缩量 <50%</div>
+        <div class="font-medium mt-3 mb-2">极端比率告警（基于累计比率）</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-muted-foreground">
+          <div>🔥 <span class="text-foreground font-medium">极端放量</span>　累计比率 > 200% 昨日同期</div>
+          <div>📊 <span class="text-foreground font-medium">显著放量</span>　累计比率 > 150% 昨日同期</div>
+          <div>⚠️ <span class="text-foreground font-medium">极端缩量</span>　累计比率 < 30% 昨日同期</div>
+          <div>📊 <span class="text-foreground font-medium">显著缩量</span>　累计比率 < 50% 昨日同期</div>
+        </div>
       </div>
 
       <!-- 汇总信息 -->
