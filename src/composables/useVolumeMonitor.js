@@ -29,6 +29,7 @@ const COOLDOWN_MS = 3 * 60 * 1000  // 3 分钟冷却
 let _prevTrend = ''             // 上一次的趋势状态
 let _prevCumulativeDiff = 0     // 上一次的累计差额（亿元）
 let _prevCumulativeRatio = 1    // 上一次的累计比率（今日/昨日）
+let _prevIncrementalRatio = 1  // 上一次的增量比率（今日增量/昨日增量）
 let _prevCumulativeTrend = ''   // 上一次的累计差额趋势: 'positive' | 'negative' | ''
 let _prevDiffDirection = ''     // 上一次的差额变化方向: 'increasing' | 'decreasing' | ''
 let _prevCloseVsAvg = ''       // 上一次收盘价与均价关系: 'above' | 'below' | ''
@@ -39,14 +40,15 @@ const _volumeTimer = createAutoRefreshTimer('volume', {
   onRefresh: () => {
     if (!loading.value) fetchData()
   },
-  refreshInterval: 30,
-  countdownFrom: 30,
+  refreshInterval: 15,
+  initialCountdown: 15,
   shouldRefresh: () => !loading.value,
   onStart: () => {
     initAudio()
     _prevTrend = ''
     _prevCumulativeDiff = 0
     _prevCumulativeRatio = 1
+    _prevIncrementalRatio = 1
     _prevCumulativeTrend = ''
     _prevDiffDirection = ''
     _prevCloseVsAvg = ''
@@ -56,12 +58,36 @@ const _volumeTimer = createAutoRefreshTimer('volume', {
     _prevTrend = ''
     _prevCumulativeDiff = 0
     _prevCumulativeRatio = 1
+    _prevIncrementalRatio = 1
     _prevCumulativeTrend = ''
     _prevDiffDirection = ''
     _prevCloseVsAvg = ''
     _lastCrossTime = 0
   }
 })
+
+// 动态刷新频率：交易时段15s，非交易时段60s
+function updateRefreshInterval() {
+  if (!_volumeTimer.isActive.value) return
+  const now = new Date()
+  const hour = now.getHours()
+  const minute = now.getMinutes()
+  const timeOfDay = hour * 60 + minute
+  
+  const isMorningSession = timeOfDay >= 9 * 60 + 30 && timeOfDay <= 11 * 60 + 30
+  const isAfternoonSession = timeOfDay >= 13 * 60 && timeOfDay <= 15 * 60
+  const isTradingTime = isMorningSession || isAfternoonSession
+  
+  const newInterval = isTradingTime ? 15 : 60
+  
+  if (_volumeTimer.refreshInterval.value !== newInterval) {
+    console.log(`[量能监控] 调整刷新频率: ${_volumeTimer.refreshInterval.value}s -> ${newInterval}s (${isTradingTime ? '交易时段' : '非交易时段'})`)
+    _volumeTimer.updateInterval(newInterval)
+  }
+}
+
+// 每分钟检查一次是否需要调整刷新频率
+const _intervalCheckId = setInterval(updateRefreshInterval, 60 * 1000)
 
 const autoRefresh = _volumeTimer.isActive
 const countdown = _volumeTimer.countdown
@@ -79,6 +105,43 @@ function formatVolume(val) {
 function formatPercent(val) {
   if (val === null || val === undefined || isNaN(val)) return '-'
   return (val >= 0 ? '+' : '') + val.toFixed(2) + '%'
+}
+
+// 判断分钟数据点是否完整
+// 规则：对于时间点 "HH:MM"，只有当当前时间已经过了这个分钟才算完整
+// 为了安全起见，要求至少过了 30 秒，确保 API 数据已更新
+function isDataPointComplete(timeStr) {
+  if (!timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) return true  // 无法判断时默认完整
+  const [hh, mm] = timeStr.split(':').map(Number)
+  const now = new Date()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+  const dataPointMinutes = hh * 60 + mm
+  
+  // 如果是上午 11:30 或下午 15:00 这种收盘时间点，视为完整
+  if (dataPointMinutes === 11 * 60 + 30 || dataPointMinutes === 15 * 60) return true
+  
+  // 只有当前时间超过数据点时间 + 30秒才算完整
+  // 即：当前分钟 > 数据点分钟，或(当前分钟 == 数据点分钟 且 秒数 >= 30)
+  const currentSecs = now.getSeconds()
+  if (currentMinutes > dataPointMinutes) return true
+  if (currentMinutes === dataPointMinutes && currentSecs >= 30) return true
+  return false
+}
+
+// 获取最后一个完整的数据点索引
+function getLastCompleteIndex(data) {
+  let lastCompleteIdx = -1
+  for (let i = 0; i < data.length; i++) {
+    const d = data[i]
+    if (d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0) {
+      if (isDataPointComplete(d.time)) {
+        lastCompleteIdx = i
+      } else {
+        break  // 遇到第一个不完整的点就停止
+      }
+    }
+  }
+  return lastCompleteIdx
 }
 
 // ===== 趋势分析 =====
@@ -189,59 +252,110 @@ function computeMinuteData(rawPoints) {
 function analyzeTrend() {
   const data = minuteData.value
   
-  // 过滤掉没有实际数据的记录
-  const validData = data.filter(d => d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0)
+  // 获取最后一个完整数据点的索引
+  const lastCompleteIdx = getLastCompleteIndex(data)
   
-  if (validData.length < WINDOW) {
+  // 至少需要 WINDOW 个完整数据点
+  if (lastCompleteIdx < WINDOW - 1) {
     trendStatus.value = ''
     trendLabel.value = '数据不足'
     return
   }
 
-  // 取最近 WINDOW 分钟的数据
-  const recent = validData.slice(-WINDOW)
-  // 取再往前的 WINDOW 分钟（用于环比）
-  const prevWindow = validData.slice(-WINDOW * 2, -WINDOW)
+  // 获取所有完整的数据点（截止到 lastCompleteIdx）
+  const completedData = []
+  for (let i = 0; i <= lastCompleteIdx; i++) {
+    const d = data[i]
+    if (d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0) {
+      completedData.push(d)
+    }
+  }
 
+  if (completedData.length < WINDOW) {
+    trendStatus.value = ''
+    trendLabel.value = '有效数据不足'
+    return
+  }
+
+  console.log('[量能分析] 完整性检测', {
+    lastCompleteIdx,
+    completedCount: completedData.length,
+    lastCompleteTime: completedData[completedData.length - 1].time
+  })
+
+  // ========== 主要判断：累计比率（反映整体情况）==========
+  const lastPoint = completedData[completedData.length - 1]
+  const cumRatio = lastPoint.yestVol > 0 ? lastPoint.todayVol / lastPoint.yestVol : 1
+
+  // ========== 辅助参考：增量比率（最近5分钟变化情况）==========
+  const recent = completedData.slice(-WINDOW)
   if (recent.length < WINDOW / 2) {
     trendStatus.value = ''
     trendLabel.value = '有效数据不足'
     return
   }
 
-  // 计算最近窗口的增量（今日 vs 昨日）
   const firstRecent = recent[0]
   const lastRecent = recent[recent.length - 1]
   const todayIncrement = lastRecent.todayVol - firstRecent.todayVol
   const yestIncrement = lastRecent.yestVol - firstRecent.yestVol
+  const incRatio = yestIncrement > 0 ? todayIncrement / yestIncrement : 1
 
-  // 今日增量 vs 昨日同期增量
-  const ratio = yestIncrement > 0 ? todayIncrement / yestIncrement : 1
+  console.log('[量能分析]', {
+    cumRatio: cumRatio.toFixed(4),
+    incRatio: incRatio.toFixed(4),
+    todayCum: lastPoint.todayVol.toFixed(2),
+    yestCum: lastPoint.yestVol.toFixed(2),
+    todayInc: todayIncrement.toFixed(2),
+    yestInc: yestIncrement.toFixed(2)
+  })
 
-  if (!isFinite(ratio) || isNaN(ratio)) {
+  if (!isFinite(cumRatio) || isNaN(cumRatio) || !isFinite(incRatio) || isNaN(incRatio)) {
     trendStatus.value = ''
     trendLabel.value = '数据异常'
     return
   }
 
+  // ========== 综合判断逻辑 ==========
+  // 用累计比率判断"整体趋势方向"，增量比率判断"变化程度"
   let status = 'stable'
   let label = ''
 
-  if (ratio < 0.5) {
-    status = 'extreme_shrinking'
-    label = `极端缩量（近${WINDOW}分钟仅为昨日 ${(ratio * 100).toFixed(0)}%）`
-  } else if (ratio < 0.7) {
-    status = 'shrinking'
-    label = `缩量趋势（近${WINDOW}分钟为昨日 ${(ratio * 100).toFixed(0)}%）`
-  } else if (ratio > 2.0) {
-    status = 'extreme_expanding'
-    label = `极端放量（近${WINDOW}分钟为昨日 ${(ratio * 100).toFixed(0)}%）`
-  } else if (ratio > 1.3) {
-    status = 'expanding'
-    label = `放量趋势（近${WINDOW}分钟为昨日 ${(ratio * 100).toFixed(0)}%）`
+  if (cumRatio < 0.7) {
+    // 整体明显缩量 (< 70%)
+    if (cumRatio < 0.5) {
+      status = 'extreme_shrinking'
+      label = `极端缩量（今日为昨日 ${(cumRatio * 100).toFixed(0)}%）`
+    } else {
+      status = 'shrinking'
+      label = `缩量趋势（今日为昨日 ${(cumRatio * 100).toFixed(0)}%）`
+    }
+  } else if (cumRatio > 1.3) {
+    // 整体明显放量 (> 130%)
+    if (cumRatio > 2.0) {
+      status = 'extreme_expanding'
+      label = `极端放量（今日为昨日 ${(cumRatio * 100).toFixed(0)}%）`
+    } else {
+      status = 'expanding'
+      label = `放量趋势（今日为昨日 ${(cumRatio * 100).toFixed(0)}%）`
+    }
+  } else if (cumRatio >= 0.7 && cumRatio <= 1.3) {
+    // 整体接近正常（70%-130%），用增量比率判断是否有趋势
+    if (incRatio > 2.0 && cumRatio > 1.0) {
+      // 整体正常但最近放量加速
+      status = 'expanding'
+      label = `温和放量（今日 ${(cumRatio * 100).toFixed(0)}%，近${WINDOW}分钟加速至 ${(incRatio * 100).toFixed(0)}%）`
+    } else if (incRatio < 0.5 && cumRatio < 1.0) {
+      // 整体正常但最近缩量加速
+      status = 'shrinking'
+      label = `温和缩量（今日 ${(cumRatio * 100).toFixed(0)}%，近${WINDOW}分钟降至 ${(incRatio * 100).toFixed(0)}%）`
+    } else {
+      status = 'stable'
+      label = `量能平稳（今日为昨日 ${(cumRatio * 100).toFixed(0)}%）`
+    }
   } else {
     status = 'stable'
-    label = `量能平稳（近${WINDOW}分钟为昨日 ${(ratio * 100).toFixed(0)}%）`
+    label = `量能平稳（今日为昨日 ${(cumRatio * 100).toFixed(0)}%）`
   }
 
   trendStatus.value = status
@@ -290,45 +404,55 @@ function checkExtremeAlert() {
   if (!alertEnabled.value) return
   const data = minuteData.value
   
-  // 过滤掉没有实际数据的记录
-  const validData = data.filter(d => d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0)
-  if (validData.length < WINDOW) return
+  // 获取最后一个完整数据点的索引
+  const lastCompleteIdx = getLastCompleteIndex(data)
+  if (lastCompleteIdx < WINDOW - 1) return  // 数据不足
 
-  const recent = validData.slice(-WINDOW)
-  if (recent.length < WINDOW / 2) return
-
-  // 计算最近窗口的增量（今日 vs 昨日）
-  const first = recent[0]
-  const last = recent[recent.length - 1]
-  const todayIncrement = last.todayVol - first.todayVol
-  const yestIncrement = last.yestVol - first.yestVol
-
-  if (yestIncrement <= 0 || todayIncrement <= 0 || !isFinite(todayIncrement) || !isFinite(yestIncrement)) {
-    return
+  // 获取所有完整的数据点
+  const completedData = []
+  for (let i = 0; i <= lastCompleteIdx; i++) {
+    const d = data[i]
+    if (d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0) {
+      completedData.push(d)
+    }
   }
 
-  const ratio = todayIncrement / yestIncrement
+  if (completedData.length < WINDOW) return
 
-  if (!isFinite(ratio) || isNaN(ratio)) return
+  // 用累计比率判断整体情况（与 analyzeTrend 保持一致）
+  const lastPoint = completedData[completedData.length - 1]
+  const cumRatio = lastPoint.yestVol > 0 ? lastPoint.todayVol / lastPoint.yestVol : 1
 
-  // 持续缩量（较昨日 < 50%）
-  if (ratio < 0.5) {
+  console.log('[极端告警调试]', {
+    todayCum: lastPoint.todayVol.toFixed(2),
+    yestCum: lastPoint.yestVol.toFixed(2),
+    cumRatio: cumRatio.toFixed(4),
+    lastCompleteTime: lastPoint.time
+  })
+
+  if (!isFinite(cumRatio) || isNaN(cumRatio)) return
+
+  // 极端缩量（累计比率 < 50%）
+  if (cumRatio < 0.5) {
     if (_canAlert('extreme_shrink')) {
-      _notify('⚠️ 持续极端缩量', `近${WINDOW}分钟成交额仅为昨日同期的 ${(ratio * 100).toFixed(0)}%，市场交投极度清淡`, 1)
+      _notify('⚠️ 持续极端缩量', `今日累计量能仅为昨日同期的 ${(cumRatio * 100).toFixed(0)}%，市场交投极度清淡`, 1)
     }
-  } else if (ratio < 0.7) {
+  } else if (cumRatio < 0.7) {
+    // 显著缩量（累计比率 < 70%）
     if (_canAlert('significant_shrink')) {
-      _notify('📊 持续缩量', `近${WINDOW}分钟成交额为昨日同期的 ${(ratio * 100).toFixed(0)}%，市场交投清淡`, 1)
+      _notify('📊 持续缩量', `今日累计量能为昨日同期的 ${(cumRatio * 100).toFixed(0)}%，市场交投清淡`, 1)
     }
   }
-  // 持续放量（较昨日 > 200%）
-  if (ratio > 2.0) {
+  
+  // 极端放量（累计比率 > 200%）
+  if (cumRatio > 2.0) {
     if (_canAlert('extreme_expand')) {
-      _notify('🔥 持续极端放量', `近${WINDOW}分钟成交额为昨日同期的 ${(ratio * 100).toFixed(0)}%，市场交投极度活跃`, 2)
+      _notify('🔥 持续极端放量', `今日累计量能为昨日同期的 ${(cumRatio * 100).toFixed(0)}%，市场交投极度活跃`, 2)
     }
-  } else if (ratio > 1.3) {
+  } else if (cumRatio > 1.3) {
+    // 显著放量（累计比率 > 130%）
     if (_canAlert('significant_expand')) {
-      _notify('📊 持续放量', `近${WINDOW}分钟成交额为昨日同期的 ${(ratio * 100).toFixed(0)}%，市场交投活跃`, 2)
+      _notify('📊 持续放量', `今日累计量能为昨日同期的 ${(cumRatio * 100).toFixed(0)}%，市场交投活跃`, 2)
     }
   }
 }
@@ -337,115 +461,190 @@ function checkCumulativeDiffAlert() {
   if (!alertEnabled.value) return
   const data = minuteData.value
   
-  const validData = data.filter(d => d.hasData && !d.isFuture)
-  if (validData.length < WINDOW) return
+  // 获取最后一个完整数据点的索引
+  const lastCompleteIdx = getLastCompleteIndex(data)
+  if (lastCompleteIdx < WINDOW) return  // 至少需要 WINDOW 个完整点来计算增量
 
-  // todayVol 和 yestVol 已经是累计值，取最后一个即可
-  const todayCum = validData[validData.length - 1].todayVol || 0
-  const yestCum = validData[validData.length - 1].yestVol || 0
-
-  const cumulativeDiffYi = (todayCum - yestCum) / 1e8
-
-  const cumulativeRatio = yestCum > 0 ? todayCum / yestCum : 1
-
-  let currentTrend = ''
-  if (cumulativeRatio > 1.05) currentTrend = 'positive'
-  else if (cumulativeRatio < 0.95) currentTrend = 'negative'
-
-  let currentDirection = ''
-  const diffChange = cumulativeRatio - _prevCumulativeRatio
-  if (Math.abs(diffChange) < 0.02) {
-    currentDirection = 'stable'
-  } else if (diffChange > 0) {
-    currentDirection = 'increasing'
-  } else {
-    currentDirection = 'decreasing'
+  // 获取所有完整的数据点
+  const completedData = []
+  for (let i = 0; i <= lastCompleteIdx; i++) {
+    const d = data[i]
+    if (d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0) {
+      completedData.push(d)
+    }
   }
 
-  // 1. 颜色转换（红转绿/绿转红）
-  if (_prevCumulativeTrend && _prevCumulativeTrend !== currentTrend) {
-    if (currentTrend === 'negative') {
+  if (completedData.length < WINDOW) return
+
+  // 1. 计算累计值（用于极端比率告警）
+  const todayCum = completedData[completedData.length - 1].todayVol || 0
+  const yestCum = completedData[completedData.length - 1].yestVol || 0
+  const cumulativeRatio = yestCum > 0 ? todayCum / yestCum : 1
+
+  // 2. 计算最近 WINDOW 分钟的增量（用于趋势变化判断）
+  const recent = completedData.slice(-WINDOW)
+  const firstRecent = recent[0]
+  const lastRecent = recent[recent.length - 1]
+  
+  const todayIncrement = lastRecent.todayVol - firstRecent.todayVol
+  const yestIncrement = lastRecent.yestVol - firstRecent.yestVol
+  
+  // 增量比率：最近窗口的今日增量 / 昨日同期增量
+  const incrementalRatio = yestIncrement > 0 ? todayIncrement / yestIncrement : 1
+
+  // 调试日志：输出关键指标
+  console.log('[量能告警调试]', {
+    completePoints: completedData.length,
+    lastCompleteTime: completedData[completedData.length - 1].time,
+    todayCum: todayCum.toFixed(2),
+    yestCum: yestCum.toFixed(2),
+    cumulativeRatio: cumulativeRatio.toFixed(4),
+    todayIncrement: todayIncrement.toFixed(2),
+    yestIncrement: yestIncrement.toFixed(2),
+    incrementalRatio: incrementalRatio.toFixed(4),
+    prevIncrementalRatio: _prevIncrementalRatio.toFixed(4)
+  })
+
+  // 3. 判断当前趋势（基于累计比率，与 analyzeTrend 保持一致）
+  // 累计比率 < 0.7 说明整体缩量，> 1.3 说明整体放量
+  let currentTrend = ''
+  if (cumulativeRatio > 1.3) currentTrend = 'positive'  // 累计比率 > 1.3，整体放量
+  else if (cumulativeRatio < 0.7) currentTrend = 'negative'  // 累计比率 < 0.7，整体缩量
+
+  // 4. 判断变化方向（基于增量比率的变化，反映加速/减弱）
+  let currentDirection = ''
+  const ratioChange = incrementalRatio - _prevIncrementalRatio
+  if (Math.abs(ratioChange) < 0.03) {
+    currentDirection = 'stable'
+  } else if (ratioChange > 0) {
+    currentDirection = 'increasing'  // 增量比率上升
+  } else {
+    currentDirection = 'decreasing'  // 增量比率下降
+  }
+
+  console.log('[量能告警调试] 趋势分析', {
+    currentTrend,
+    currentDirection,
+    cumulativeRatio_level: cumulativeRatio < 0.7 ? 'negative' : cumulativeRatio > 1.3 ? 'positive' : 'stable',
+    ratioChange: ratioChange.toFixed(4)
+  })
+
+  // 5. 颜色转换（红转绿/绿转红）—— 用与 analyzeTrend 一致的阈值
+  let cumulativeTrend = ''
+  if (cumulativeRatio > 1.3) cumulativeTrend = 'positive'  // 与 analyzeTrend 的放量阈值一致
+  else if (cumulativeRatio < 0.7) cumulativeTrend = 'negative'  // 与 analyzeTrend 的缩量阈值一致
+
+  console.log('[量能告警调试] 告警条件检查', {
+    currentTrend,
+    currentDirection,
+    cumulativeTrend,
+    prevCumulativeTrend: _prevCumulativeTrend,
+    willTriggerColorChange: _prevCumulativeTrend && _prevCumulativeTrend !== cumulativeTrend,
+    willTriggerExpandSpeed: currentTrend === 'positive' && currentDirection === 'increasing',
+    willTriggerExpandDecrease: currentTrend === 'positive' && currentDirection === 'decreasing',
+    willTriggerShrinkSpeed: currentTrend === 'negative' && currentDirection === 'decreasing',
+    willTriggerShrinkDecrease: currentTrend === 'negative' && currentDirection === 'increasing',
+    willTriggerMildExpand: !currentTrend && cumulativeRatio >= 1.0 && cumulativeRatio <= 1.3 && incrementalRatio > 2.0,
+    willTriggerMildShrink: !currentTrend && cumulativeRatio < 1.0 && cumulativeRatio >= 0.7 && incrementalRatio < 0.5
+  })
+
+  if (_prevCumulativeTrend && _prevCumulativeTrend !== cumulativeTrend) {
+    if (cumulativeTrend === 'negative') {
       if (_canAlert('diff_pos_to_neg')) {
         _notify('📉 量能趋势由强转弱', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，资金流出加速`, 2)
       }
-    } else if (currentTrend === 'positive') {
+    } else if (cumulativeTrend === 'positive') {
       if (_canAlert('diff_neg_to_pos')) {
         _notify('📈 量能趋势由弱转强', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，资金流入加速`, 2)
       }
     }
   }
 
-  // 2. 持续放量加剧（红色越来越高，增速加快）
+  // 6. 放量加速（整体放量，增量比率上升）
   if (currentTrend === 'positive' && currentDirection === 'increasing') {
-    const ratioChange = _prevCumulativeRatio > 0
-      ? ((cumulativeRatio - _prevCumulativeRatio) / _prevCumulativeRatio) * 100
+    const pctChange = _prevIncrementalRatio > 0
+      ? ((incrementalRatio - _prevIncrementalRatio) / _prevIncrementalRatio) * 100
       : 0
-    if (ratioChange > 10 && cumulativeRatio > 1.15) {
+    if (pctChange > 5) {
       if (_canAlert('diff_strong_increase')) {
-        _notify('🚀 放量加速', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，较上次加速 ${ratioChange.toFixed(0)}%`, 2)
+        _notify('🚀 放量加速', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，近${WINDOW}分钟放量加速 ${pctChange.toFixed(0)}%`, 2)
       }
     }
   }
 
-  // 3. 放量减弱（红色柱子变矮，增速放缓）——放宽触发条件
+  // 7. 放量减弱（整体放量，但增量比率下降）
   if (currentTrend === 'positive' && currentDirection === 'decreasing') {
-    const ratioChange = _prevCumulativeRatio > 0
-      ? ((_prevCumulativeRatio - cumulativeRatio) / _prevCumulativeRatio) * 100
+    const pctChange = _prevIncrementalRatio > 0
+      ? ((_prevIncrementalRatio - incrementalRatio) / _prevIncrementalRatio) * 100
       : 0
-    // 只要累积比率仍在 1.05 以上且增速放缓（相对变化 >= 3%）即触发
-    if (ratioChange > 3 && cumulativeRatio > 1.05) {
+    if (pctChange > 5) {
       if (_canAlert('diff_positive_decreasing')) {
-        _notify('📉 放量减弱', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，增速放缓 ${ratioChange.toFixed(0)}%，资金流入放缓`, 2)
+        _notify('📉 放量减弱', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，增速放缓 ${pctChange.toFixed(0)}%`, 2)
       }
     }
   }
 
-  // 4. 持续缩量加剧（绿色越来越深，缩量加速）
+  // 8. 缩量加速（整体缩量，增量比率继续下降）
   if (currentTrend === 'negative' && currentDirection === 'decreasing') {
-    const ratioChange = _prevCumulativeRatio > 0
-      ? ((_prevCumulativeRatio - cumulativeRatio) / _prevCumulativeRatio) * 100
+    const pctChange = _prevIncrementalRatio > 0
+      ? ((_prevIncrementalRatio - incrementalRatio) / _prevIncrementalRatio) * 100
       : 0
-    if (ratioChange > 10 && cumulativeRatio < 0.85) {
+    if (pctChange > 5) {
       if (_canAlert('diff_strong_decrease')) {
-        _notify('⚠️ 缩量加速', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，缩量加速 ${ratioChange.toFixed(0)}%`, 1)
+        _notify('⚠️ 缩量加速', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，缩量加剧 ${pctChange.toFixed(0)}%`, 1)
       }
     }
   }
 
-  // 5. 缩量减弱（绿色柱子变矮，缩量收窄）
+  // 9. 缩量减弱（整体缩量，但增量比率回升）
   if (currentTrend === 'negative' && currentDirection === 'increasing') {
-    const ratioChange = _prevCumulativeRatio > 0
-      ? ((cumulativeRatio - _prevCumulativeRatio) / _prevCumulativeRatio) * 100
+    const pctChange = _prevIncrementalRatio > 0
+      ? ((incrementalRatio - _prevIncrementalRatio) / _prevIncrementalRatio) * 100
       : 0
-    if (ratioChange > 8 && cumulativeRatio < 0.95) {
+    if (pctChange > 5) {
       if (_canAlert('diff_negative_decreasing')) {
-        _notify('📈 缩量减弱', `今日累计量能 ${(cumulativeRatio * 100).toFixed(0)}% 昨日，缩量收窄 ${ratioChange.toFixed(0)}%，资金流出放缓`, 1)
+        _notify('📈 缩量减弱', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，缩量收窄 ${pctChange.toFixed(0)}%`, 2)
       }
     }
   }
 
-  // 6. 极端比率告警（基于比率而非绝对值）
+  // 10. 温和放量（整体接近正常，但最近放量加速）
+  if (!currentTrend && cumulativeRatio >= 1.0 && cumulativeRatio <= 1.3 && incrementalRatio > 2.0) {
+    if (_canAlert('diff_mild_expand')) {
+      _notify('📈 温和放量', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，近${WINDOW}分钟放量加速`, 2)
+    }
+  }
+
+  // 11. 温和缩量（整体接近正常，但最近缩量加速）
+  if (!currentTrend && cumulativeRatio < 1.0 && cumulativeRatio >= 0.7 && incrementalRatio < 0.5) {
+    if (_canAlert('diff_mild_shrink')) {
+      _notify('📉 温和缩量', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，近${WINDOW}分钟缩量加速`, 1)
+    }
+  }
+
+  // 12. 极端比率告警（基于累计比率）
   if (cumulativeRatio > 2.0) {
     if (_canAlert('diff_extreme_expand')) {
-      _notify('🔥 极端放量', `今日累计量能达昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投极度活跃`, 2)
+      _notify('🔥 极端放量', `今日累计量能达昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 2)
     }
   } else if (cumulativeRatio > 1.5) {
     if (_canAlert('diff_significant_expand')) {
-      _notify('📊 显著放量', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投活跃`, 1)
+      _notify('📊 显著放量', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 1)
     }
   } else if (cumulativeRatio < 0.3) {
     if (_canAlert('diff_extreme_shrink')) {
-      _notify('⚠️ 极端缩量', `今日累计量能仅为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投极度清淡`, 1)
+      _notify('⚠️ 极端缩量', `今日累计量能仅为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 1)
     }
   } else if (cumulativeRatio < 0.5) {
     if (_canAlert('diff_significant_shrink')) {
-      _notify('📊 显著缩量', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%，市场交投清淡`, 1)
+      _notify('📊 显著缩量', `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 1)
     }
   }
 
-  _prevCumulativeDiff = cumulativeDiffYi
+  // 更新状态
   _prevCumulativeRatio = cumulativeRatio
-  if (currentTrend) _prevCumulativeTrend = currentTrend
+  _prevIncrementalRatio = incrementalRatio
+  if (cumulativeTrend) _prevCumulativeTrend = cumulativeTrend
   _prevDiffDirection = currentDirection
 }
 
@@ -637,9 +836,14 @@ function toggleAutoRefresh() {
 const todayTotal = computed(() => header.value?.today || 0)
 const yesterdayTotal = computed(() => header.value?.yesterday || 0)
 const predictTotal = computed(() => header.value?.predict || 0)
-const changePercent = computed(() => {
-  if (!header.value || !header.value.yesterday) return 0
-  return ((header.value.today - header.value.yesterday) / header.value.yesterday) * 100
+
+// 今日为昨日同期比率（从分钟级数据计算，更准确）
+const vsYesterdaySamePeriod = computed(() => {
+  const data = minuteData.value
+  const validData = data.filter(d => d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0)
+  if (validData.length === 0) return 0
+  const lastPoint = validData[validData.length - 1]
+  return (lastPoint.todayVol / lastPoint.yestVol) * 100
 })
 
 const trendColor = computed(() => {
@@ -709,10 +913,11 @@ export function useVolumeMonitor(voiceRef) {
     selectedVoice,
     autoRefresh,
     countdown,
+    refreshInterval: _volumeTimer.refreshInterval,
     todayTotal,
     yesterdayTotal,
     predictTotal,
-    changePercent,
+    vsYesterdaySamePeriod,
     fetchData,
     toggleAutoRefresh,
     formatVolume,

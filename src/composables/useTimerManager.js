@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 
 // ===== 全局定时器注册表 =====
-const _timers = new Map()  // { name: { handle, config } }
+const _timers = new Map()
 
 // ===== 全局状态 =====
 const _globalPause = ref(false)
@@ -20,9 +20,10 @@ function updateStats() {
 }
 
 /**
- * 创建一个自动刷新定时器组
+ * 创建一个自动刷新定时器
  */
 export function createAutoRefreshTimer(name, config) {
+  // 如果已存在同名定时器，先销毁
   if (_timers.has(name)) {
     destroyTimer(name)
   }
@@ -30,50 +31,98 @@ export function createAutoRefreshTimer(name, config) {
   const {
     onRefresh,
     refreshInterval = 30,
-    countdownFrom = 30,
+    initialCountdown = 30,
     onStart,
     onStop,
     shouldRefresh
   } = config
 
   const isActive = ref(false)
-  const countdown = ref(countdownFrom)
+  const countdown = ref(initialCountdown)
+  const intervalDuration = ref(refreshInterval)
 
-  let _intervalId = null
-  let _countdownId = null
+  let _timeoutId = null
+  let _remainingMs = intervalDuration.value * 1000
+  let _lastTickTime = 0
+
+  function tick() {
+    if (!isActive.value) return
+    if (_globalPause.value) {
+      // 暂停时不递减倒计时，但保持定时器运行
+      scheduleNext(1000)
+      return
+    }
+
+    const now = Date.now()
+    const elapsed = now - _lastTickTime
+    _lastTickTime = now
+
+    _remainingMs -= elapsed
+    
+    if (_remainingMs <= 0) {
+      // 触发刷新
+      const shouldDoRefresh = !shouldRefresh || shouldRefresh()
+      if (shouldDoRefresh) {
+        onRefresh && onRefresh()
+      }
+      // 重置倒计时
+      _remainingMs = intervalDuration.value * 1000
+      countdown.value = intervalDuration.value
+    } else {
+      // 更新显示的倒计时（向下取整到秒）
+      countdown.value = Math.ceil(_remainingMs / 1000)
+    }
+
+    // 下一次检查在 1 秒后
+    scheduleNext(1000)
+  }
+
+  function scheduleNext(delayMs) {
+    if (_timeoutId) {
+      clearTimeout(_timeoutId)
+    }
+    _timeoutId = setTimeout(() => {
+      tick()
+    }, delayMs)
+  }
 
   function start() {
     if (isActive.value) return
+    if (_timeoutId) return  // 防止重复启动
+
     if (onStart) onStart()
     isActive.value = true
-    countdown.value = countdownFrom
+    _remainingMs = intervalDuration.value * 1000
+    countdown.value = intervalDuration.value
+    _lastTickTime = Date.now()
 
-    _countdownId = setInterval(() => {
-      if (_globalPause.value) return
-      countdown.value--
-      if (countdown.value <= 0) countdown.value = countdownFrom
-    }, 1000)
-
-    _intervalId = setInterval(() => {
-      if (_globalPause.value) return
-      if (!shouldRefresh || shouldRefresh()) {
+    // 立即执行一次
+    if (!_globalPause.value) {
+      const shouldDoRefresh = !shouldRefresh || shouldRefresh()
+      if (shouldDoRefresh) {
         onRefresh && onRefresh()
       }
-    }, refreshInterval * 1000)
-
-    if (!_globalPause.value) {
-      onRefresh && onRefresh()
+      _remainingMs = intervalDuration.value * 1000
+      countdown.value = intervalDuration.value
     }
 
+    // 启动定时器
+    scheduleNext(1000)
+    console.log(`[定时器] ${name} 已启动, 间隔: ${intervalDuration.value}s`)
     updateStats()
   }
 
   function stop() {
     if (!isActive.value) return
+    
     isActive.value = false
-    countdown.value = countdownFrom
-    if (_intervalId) { clearInterval(_intervalId); _intervalId = null }
-    if (_countdownId) { clearInterval(_countdownId); _countdownId = null }
+    countdown.value = intervalDuration.value
+    
+    if (_timeoutId) {
+      clearTimeout(_timeoutId)
+      _timeoutId = null
+    }
+    
     if (onStop) onStop()
     updateStats()
   }
@@ -84,7 +133,16 @@ export function createAutoRefreshTimer(name, config) {
   }
 
   function resetCountdown() {
-    countdown.value = countdownFrom
+    _remainingMs = intervalDuration.value * 1000
+    countdown.value = intervalDuration.value
+  }
+
+  function setInterval(newInterval) {
+    intervalDuration.value = newInterval
+    countdown.value = newInterval
+    if (isActive.value) {
+      _remainingMs = newInterval * 1000
+    }
   }
 
   const handle = {
@@ -94,12 +152,12 @@ export function createAutoRefreshTimer(name, config) {
     stop,
     toggle,
     resetCountdown,
-    refreshInterval,
-    name
+    refreshInterval: intervalDuration,
+    name,
+    updateInterval: setInterval
   }
 
-  _timers.set(name, { handle, config: { refreshInterval, countdownFrom } })
-
+  _timers.set(name, { handle, config: { refreshInterval, initialCountdown } })
   return handle
 }
 
@@ -139,7 +197,7 @@ export function stopAll() {
 }
 
 /**
- * 获取所有定时器（含控制句柄，用于控制面板）
+ * 获取所有定时器
  */
 export function getAllTimers() {
   const result = []

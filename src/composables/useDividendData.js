@@ -21,7 +21,7 @@ const _dividendTimer = createAutoRefreshTimer('dividend', {
     }
   },
   refreshInterval: 60,
-  countdownFrom: 60,
+  initialCountdown: 60,
   shouldRefresh: () => dividendTableData.value.length > 0 && !dividendLoading.value,
   onStart: () => {
     initAudio()

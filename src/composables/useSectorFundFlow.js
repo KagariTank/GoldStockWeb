@@ -14,7 +14,7 @@ const _sectorTimer = createAutoRefreshTimer('sector', {
     if (!loading.value) fetchData()
   },
   refreshInterval: 30,
-  countdownFrom: 30,
+  initialCountdown: 30,
   shouldRefresh: () => !loading.value,
   onStart: () => {
     initAudio()

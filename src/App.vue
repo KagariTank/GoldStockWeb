@@ -28,6 +28,8 @@ const importVisible = ref(false)
 const exportJsonText = ref('')
 const importJsonText = ref('')
 const importMode = ref('merge')
+const fileInputRef = ref(null)
+const selectedFileName = ref('')
 
 // Voice
 const chineseVoices = ref([])
@@ -140,9 +142,34 @@ const downloadExportJson = () => {
   }, 100)
 }
 
+const handleFileSelect = async (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+  
+  // 检查文件类型
+  if (!file.name.endsWith('.json') && file.type !== 'application/json') {
+    alert('请选择 JSON 文件')
+    return
+  }
+  
+  try {
+    const text = await file.text()
+    importJsonText.value = text
+    selectedFileName.value = file.name
+  } catch (e) {
+    alert('读取文件失败：' + e.message)
+  }
+  
+  // 重置 input，这样下次选择同一个文件也能触发 change
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+}
+
 const openImport = () => {
   importJsonText.value = ''
   importMode.value = 'merge'
+  selectedFileName.value = ''
   importVisible.value = true
 }
 
@@ -382,7 +409,7 @@ onMounted(() => {
       <!-- Import Dialog -->
       <Dialog v-model="importVisible" title="📥 导入数据" width="720px">
         <p class="text-sm text-muted-foreground mb-2">
-          粘贴之前导出的 JSON 文本到下面的文本框，选择合并方式后点【确认导入】。
+          粘贴之前导出的 JSON 文本到下面的文本框，或点击按钮选择本地 JSON 文件导入。
         </p>
         <div class="flex gap-4 mb-3">
           <label class="flex items-center gap-2">
@@ -394,7 +421,22 @@ onMounted(() => {
             <span class="text-sm">替换（清空现有，用导入的覆盖整个列表）</span>
           </label>
         </div>
-        <Textarea v-model="importJsonText" :rows="14" class="font-mono text-xs" placeholder="请粘贴之前导出的 JSON 字符串..." />
+        <div class="flex gap-2 mb-2">
+          <input 
+            type="file" 
+            ref="fileInputRef" 
+            accept=".json,application/json" 
+            class="hidden"
+            @change="handleFileSelect"
+          />
+          <Button variant="outline" @click="fileInputRef?.click()">
+            📂 选择文件
+          </Button>
+          <span v-if="selectedFileName" class="text-sm text-muted-foreground self-center">
+            已选择：{{ selectedFileName }}
+          </span>
+        </div>
+        <Textarea v-model="importJsonText" :rows="14" class="font-mono text-xs" placeholder="请粘贴之前导出的 JSON 字符串，或点击上方按钮选择文件..."/>
         <template #footer>
           <Button variant="outline" @click="importVisible = false">取消</Button>
           <Button @click="confirmImport">确认导入</Button>
