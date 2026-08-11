@@ -654,52 +654,58 @@ function checkIndexCrossAlert() {
   const data = indexData.value
   if (!data || data.length < 2) return
 
-  const validPoints = data
-    .map((d, i) => ({ ...d, idx: i }))
-    .filter(d => d.close != null && d.average != null)
-
+  // 只取最后两个有效点（最近一分钟 vs 前一分钟）
+  const validPoints = data.filter(d => d.close != null && d.average != null)
   if (validPoints.length < 2) return
 
-  // 获取当前量能状态描述
-  const volDesc = getVolumeStatusDesc()
+  const curr = validPoints[validPoints.length - 1]
+  const prev = validPoints[validPoints.length - 2]
 
-  for (let i = validPoints.length - 1; i >= 1; i--) {
-    const curr = validPoints[i]
-    const prev = validPoints[i - 1]
+  const currDiff = curr.close - curr.average
+  const prevDiff = prev.close - prev.average
 
-    const currDiff = curr.close - curr.average
-    const prevDiff = prev.close - prev.average
-
-    // 加权线从下方穿越未加权线
-    if (prevDiff <= 0 && currDiff > 0) {
-      if (_canAlert('index_weighted_cross_up')) {
-        _notify('🟢 上证指数加权线上穿', `加权线 ${curr.close.toFixed(2)} 上穿未加权线 ${curr.average.toFixed(2)}，当前${volDesc}`, 2)
-      }
-      _prevCloseVsAvg = 'above'
-      _lastCrossTime = curr.time
-      return
-    }
-
-    // 加权线从上方穿越未加权线
-    if (prevDiff >= 0 && currDiff < 0) {
-      if (_canAlert('index_weighted_cross_down')) {
-        _notify('🔴 上证指数加权线下穿', `加权线 ${curr.close.toFixed(2)} 下穿未加权线 ${curr.average.toFixed(2)}，当前${volDesc}`, 2)
-      }
-      _prevCloseVsAvg = 'below'
-      _lastCrossTime = curr.time
-      return
-    }
+  // 如果没有发生交叉，更新状态并返回
+  if ((prevDiff > 0 && currDiff > 0) || (prevDiff < 0 && currDiff < 0)) {
+    _prevCloseVsAvg = currDiff > 0 ? 'above' : 'below'
+    return
   }
 
-  const last = validPoints[validPoints.length - 1]
-  _prevCloseVsAvg = last.close >= last.average ? 'above' : 'below'
+  // 避免同一分钟重复提示（通过冷却机制）
+  const volDesc = getVolumeStatusDesc()
+
+  // 加权线从下方穿越未加权线
+  if (prevDiff <= 0 && currDiff > 0) {
+    if (_canAlert('index_weighted_cross_up')) {
+      _notify('🟢 上证指数加权线上穿', `加权线 ${curr.close.toFixed(2)} 上穿未加权线 ${curr.average.toFixed(2)}，当前${volDesc}`, 2)
+    }
+    _prevCloseVsAvg = 'above'
+    _lastCrossTime = curr.time
+    return
+  }
+
+  // 加权线从上方穿越未加权线
+  if (prevDiff >= 0 && currDiff < 0) {
+    if (_canAlert('index_weighted_cross_down')) {
+      _notify('🔴 上证指数加权线下穿', `加权线 ${curr.close.toFixed(2)} 下穿未加权线 ${curr.average.toFixed(2)}，当前${volDesc}`, 2)
+    }
+    _prevCloseVsAvg = 'below'
+    _lastCrossTime = curr.time
+    return
+  }
 }
 
 function getVolumeStatusDesc() {
   const s = trendStatus.value
-  if (s === 'expanding' || s === 'extreme_expanding') return '放量中'
-  if (s === 'shrinking' || s === 'extreme_shrinking') return '缩量中'
-  return '量能平稳'
+  if (s === 'extreme_expanding') return '极端放量'
+  if (s === 'expanding') return '放量中'
+  if (s === 'extreme_shrinking') return '极端缩量'
+  if (s === 'shrinking') return '缩量中'
+
+  // 无趋势时用累计比率判断
+  const diff = cumulativeDiff.value
+  if (diff > 0) return '放量中'
+  if (diff < 0) return '缩量中'
+  return '成交清淡'
 }
 
 // ===== 数据拉取 =====
