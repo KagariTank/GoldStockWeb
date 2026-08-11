@@ -68,9 +68,9 @@
           <div class="text-lg font-bold text-muted-foreground">{{ formatVolume(yesterdayTotal) }}</div>
         </div>
         <div class="border rounded-lg p-3">
-          <div class="text-xs text-muted-foreground mb-1">较昨日增减</div>
-          <div class="text-lg font-bold" :class="changePercent >= 0 ? 'text-red-500' : 'text-green-500'">
-            {{ formatPercent(changePercent) }}
+          <div class="text-xs text-muted-foreground mb-1">今日为昨日同期</div>
+          <div class="text-lg font-bold" :class="vsYesterdaySamePeriod >= 100 ? 'text-red-500' : 'text-green-500'">
+            {{ vsYesterdaySamePeriod.toFixed(1) }}%
           </div>
         </div>
         <div class="border rounded-lg p-3">
@@ -182,7 +182,7 @@ const {
   todayTotal,
   yesterdayTotal,
   predictTotal,
-  changePercent,
+  vsYesterdaySamePeriod,
   fetchData,
   toggleAutoRefresh,
   formatVolume,

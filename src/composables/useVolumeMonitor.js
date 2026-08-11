@@ -709,9 +709,14 @@ function toggleAutoRefresh() {
 const todayTotal = computed(() => header.value?.today || 0)
 const yesterdayTotal = computed(() => header.value?.yesterday || 0)
 const predictTotal = computed(() => header.value?.predict || 0)
-const changePercent = computed(() => {
-  if (!header.value || !header.value.yesterday) return 0
-  return ((header.value.today - header.value.yesterday) / header.value.yesterday) * 100
+
+// 今日为昨日同期比率（从分钟级数据计算，更准确）
+const vsYesterdaySamePeriod = computed(() => {
+  const data = minuteData.value
+  const validData = data.filter(d => d.hasData && !d.isFuture && d.todayVol > 0 && d.yestVol > 0)
+  if (validData.length === 0) return 0
+  const lastPoint = validData[validData.length - 1]
+  return (lastPoint.todayVol / lastPoint.yestVol) * 100
 })
 
 const trendColor = computed(() => {
@@ -784,7 +789,7 @@ export function useVolumeMonitor(voiceRef) {
     todayTotal,
     yesterdayTotal,
     predictTotal,
-    changePercent,
+    vsYesterdaySamePeriod,
     fetchData,
     toggleAutoRefresh,
     formatVolume,
