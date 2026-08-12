@@ -506,11 +506,12 @@ function checkCumulativeDiffAlert() {
   })
 
   // 3. 判断当前趋势（基于累计比率）
-  // 累计比率 < 0.7 说明整体明显缩量，> 1.3 说明整体明显放量
-  // 累计比率 < 1.0 说明处于缩量状态（用于缩量告警触发）
+  // > 1.3: 显著放量, 1.15-1.3: 温和放量, 0.85-1.15: 正常, 0.7-0.85: 温和缩量, < 0.7: 显著缩量
   let currentTrend = ''
-  let isShrink = false  // 用于缩量告警的宽松判断
-  let isExpand = false  // 用于放量告警的宽松判断
+  let isShrink = false  // 累计比率 < 0.85，明显缩量
+  let isExpand = false  // 累计比率 > 1.15，明显放量
+  let isMildShrink = false  // 累计比率 0.85-1.0，轻度缩量
+  let isMildExpand = false  // 累计比率 1.0-1.15，轻度放量
   
   if (cumulativeRatio > 1.3) {
     currentTrend = 'positive'
@@ -520,9 +521,16 @@ function checkCumulativeDiffAlert() {
     isShrink = true
   }
   
-  // 宽松判断：累计比率 < 1.0 即为缩量状态，> 1.0 即为放量状态
-  if (cumulativeRatio < 1.0) isShrink = true
-  else if (cumulativeRatio > 1.0) isExpand = true
+  // 轻度判断（用于温和告警）
+  if (cumulativeRatio < 1.0 && cumulativeRatio >= 0.85) {
+    isMildShrink = true  // 轻度缩量区间
+  } else if (cumulativeRatio > 1.0 && cumulativeRatio <= 1.15) {
+    isMildExpand = true  // 轻度放量区间
+  }
+  
+  // 明显判断（用于加速/减弱类告警）
+  if (cumulativeRatio < 0.85) isShrink = true
+  else if (cumulativeRatio > 1.15) isExpand = true
 
   // 4. 判断变化方向（基于增量比率的变化，反映加速/减弱）
   let currentDirection = ''
@@ -551,16 +559,18 @@ function checkCumulativeDiffAlert() {
     currentTrend,
     isShrink,
     isExpand,
+    isMildShrink,
+    isMildExpand,
     currentDirection,
     cumulativeTrend,
     prevCumulativeTrend: _prevCumulativeTrend,
     willTriggerColorChange: _prevCumulativeTrend && _prevCumulativeTrend !== cumulativeTrend,
-    willTriggerExpandSpeed: isExpand && currentDirection === 'increasing',
-    willTriggerExpandDecrease: isExpand && currentDirection === 'decreasing',
-    willTriggerShrinkSpeed: isShrink && currentDirection === 'decreasing',
-    willTriggerShrinkDecrease: isShrink && currentDirection === 'increasing',
-    willTriggerMildShrink: isShrink && incrementalRatio < 0.8,
-    willTriggerMildExpand: isExpand && incrementalRatio > 1.5
+    willTriggerExpandSpeed: isExpand && currentDirection === 'increasing' && Math.abs(ratioChange) > 0.15,
+    willTriggerExpandDecrease: isExpand && currentDirection === 'decreasing' && Math.abs(ratioChange) > 0.15,
+    willTriggerShrinkSpeed: isShrink && currentDirection === 'decreasing' && Math.abs(ratioChange) > 0.15,
+    willTriggerShrinkDecrease: isShrink && currentDirection === 'increasing' && Math.abs(ratioChange) > 0.15,
+    willTriggerMildShrink: isMildShrink && currentDirection === 'decreasing' && Math.abs(ratioChange) > 0.15,
+    willTriggerMildExpand: isMildExpand && currentDirection === 'increasing' && Math.abs(ratioChange) > 0.15
   })
 
   if (_prevCumulativeTrend && _prevCumulativeTrend !== cumulativeTrend) {
@@ -575,69 +585,96 @@ function checkCumulativeDiffAlert() {
     }
   }
 
-  // 6. 放量加速（放量状态，增量比率上升）
-  if (isExpand && currentDirection === 'increasing') {
+  // 6. 放量加速（放量状态，增量比率上升，且变化显著）
+  if (isExpand && currentDirection === 'increasing' && Math.abs(ratioChange) > 0.15) {
     const pctChange = _prevIncrementalRatio > 0
       ? ((incrementalRatio - _prevIncrementalRatio) / _prevIncrementalRatio) * 100
       : 0
     if (pctChange > 3) {
+      console.log('[量能告警触发] 放量加速', { cumulativeRatio, incrementalRatio, pctChange })
       if (_canAlert('diff_strong_increase')) {
         _notify('🚀 放量加速', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，近${WINDOW}分钟放量加速 ${pctChange.toFixed(0)}%`, 2)
       }
     }
   }
 
-  // 7. 放量减弱（放量状态，但增量比率下降）
-  if (isExpand && currentDirection === 'decreasing') {
+  // 7. 放量减弱（放量状态，但增量比率下降，且变化显著）
+  if (isExpand && currentDirection === 'decreasing' && Math.abs(ratioChange) > 0.15) {
     const pctChange = _prevIncrementalRatio > 0
       ? ((_prevIncrementalRatio - incrementalRatio) / _prevIncrementalRatio) * 100
       : 0
     if (pctChange > 3) {
+      console.log('[量能告警触发] 放量减弱', { cumulativeRatio, incrementalRatio, pctChange })
       if (_canAlert('diff_positive_decreasing')) {
         _notify('📉 放量减弱', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，增速放缓 ${pctChange.toFixed(0)}%`, 2)
       }
     }
   }
 
-  // 8. 缩量加速（缩量状态，增量比率继续下降）
-  if (isShrink && currentDirection === 'decreasing') {
+  // 8. 缩量加速（缩量状态，增量比率继续下降，且变化显著）
+  if (isShrink && currentDirection === 'decreasing' && Math.abs(ratioChange) > 0.15) {
     const pctChange = _prevIncrementalRatio > 0
       ? ((_prevIncrementalRatio - incrementalRatio) / _prevIncrementalRatio) * 100
       : 0
     if (pctChange > 3) {
+      console.log('[量能告警触发] 缩量加速', { cumulativeRatio, incrementalRatio, pctChange })
       if (_canAlert('diff_strong_decrease')) {
         _notify('⚠️ 缩量加速', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，缩量加剧 ${pctChange.toFixed(0)}%`, 1)
       }
     }
   }
 
-  // 9. 缩量减弱（缩量状态，但增量比率回升）
-  if (isShrink && currentDirection === 'increasing') {
+  // 9. 缩量减弱（缩量状态，增量比率回升到合理区间，表示缩量真的在减弱）
+  // 要求：累计比率 < 0.85（确实在缩量），且增量比率回升到 0.7 以上（接近正常水平）
+  if (isShrink && currentDirection === 'increasing' && incrementalRatio >= 0.7 && Math.abs(ratioChange) > 0.15) {
     const pctChange = _prevIncrementalRatio > 0
       ? ((incrementalRatio - _prevIncrementalRatio) / _prevIncrementalRatio) * 100
       : 0
     if (pctChange > 3) {
+      console.log('[量能告警触发] 缩量减弱', { cumulativeRatio, incrementalRatio, pctChange })
       if (_canAlert('diff_negative_decreasing')) {
         _notify('📈 缩量减弱', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，缩量收窄 ${pctChange.toFixed(0)}%`, 2)
       }
     }
   }
 
-  // 10. 温和放量（累计比率略高，增量比率明显上升）
-  if (cumulativeRatio >= 1.0 && cumulativeRatio <= 1.3 && incrementalRatio > 1.5 && currentDirection === 'increasing') {
+  // 10. 温和放量（轻度放量区间，增量比率上升且变化显著）
+  if (isMildExpand && currentDirection === 'increasing' && Math.abs(ratioChange) > 0.15) {
+    console.log('[量能告警触发] 温和放量', { cumulativeRatio, incrementalRatio })
     if (_canAlert('diff_mild_expand')) {
       _notify('📈 温和放量', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，近${WINDOW}分钟放量加速`, 2)
     }
   }
 
-  // 11. 温和缩量（累计比率略低，增量比率明显下降）
-  if (cumulativeRatio < 1.0 && cumulativeRatio >= 0.7 && incrementalRatio < 0.8 && currentDirection === 'decreasing') {
+  // 11. 温和缩量（轻度缩量区间，增量比率下降且变化显著）
+  if (isMildShrink && currentDirection === 'decreasing' && Math.abs(ratioChange) > 0.15) {
+    console.log('[量能告警触发] 温和缩量', { cumulativeRatio, incrementalRatio })
     if (_canAlert('diff_mild_shrink')) {
       _notify('📉 温和缩量', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，近${WINDOW}分钟缩量加速`, 1)
     }
   }
 
-  // 12. 极端比率告警（基于累计比率）
+  // 12. 持续缩量（累计比率 < 0.85，周期性提醒）
+  if (isShrink) {
+    const level = cumulativeRatio < 0.5 ? 'extreme' : cumulativeRatio < 0.7 ? 'significant' : 'mild'
+    if (_canAlert(`diff_persistent_shrink_${level}`)) {
+      const label = level === 'extreme' ? '极端缩量' : level === 'significant' ? '显著缩量' : '持续缩量'
+      console.log('[量能告警触发]', label, { cumulativeRatio })
+      _notify(`⚠️ ${label}`, `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 1)
+    }
+  }
+
+  // 13. 持续放量（累计比率 > 1.15，周期性提醒）
+  if (isExpand) {
+    const level = cumulativeRatio > 2.0 ? 'extreme' : cumulativeRatio > 1.5 ? 'significant' : 'mild'
+    if (_canAlert(`diff_persistent_expand_${level}`)) {
+      const label = level === 'extreme' ? '极端放量' : level === 'significant' ? '显著放量' : '持续放量'
+      console.log('[量能告警触发]', label, { cumulativeRatio })
+      _notify(`📈 ${label}`, `今日累计量能为昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 2)
+    }
+  }
+
+  // 14. 极端比率告警（基于累计比率）
   if (cumulativeRatio > 2.0) {
     if (_canAlert('diff_extreme_expand')) {
       _notify('🔥 极端放量', `今日累计量能达昨日同期的 ${(cumulativeRatio * 100).toFixed(0)}%`, 2)
