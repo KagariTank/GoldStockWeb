@@ -29,6 +29,7 @@
             <TableHead class="w-10"></TableHead>
             <TableHead label="项目 / 编号" class="min-w-[140px]" />
             <TableHead label="当前值 / 波动" class="w-[160px]" />
+            <TableHead label="盘口/封单" class="w-[180px]" />
             <TableHead label="均线" class="w-[80px]" />
             <TableHead label="止盈止损" class="w-[170px]" />
             <TableHead label="距离(%)" class="w-[130px]" />
@@ -96,6 +97,39 @@
                 </div>
                 <div class="text-xs" :class="getChgClass(row)">
                   {{ formatChg(row) }}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div class="text-xs space-y-0.5 pr-2">
+                  <!-- 封单分析 -->
+                  <template v-if="row.sealAnalysis">
+                    <div class="flex justify-between pt-0.5 border-gray-100">
+                      <span class="text-red-500 font-medium">{{ row.sealAnalysis.limitType }}</span>
+                      <span class="font-mono text-xs">{{ formatMoney(row.sealAnalysis.sealAmount) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-muted-foreground">占比</span>
+                      <span class="font-mono" :class="getSealLevelClass(row.sealAnalysis.level)">
+                        {{ row.sealAnalysis.sealPct }}%
+                      </span>
+                    </div>
+                    <div class="text-xs" :class="getTrendClass(row.sealAnalysis.trend)">
+                      {{ row.sealAnalysis.trendDesc }}
+                    </div>
+                  </template>
+                  <template v-else>
+                  <div class="flex justify-between">
+                    <span class="text-red-500">买一</span>
+                      <span class="font-mono">{{ row.buy1Price || '-' }}</span>
+                      <span class="text-muted-foreground ml-1">{{ formatVolumeShort(row.buy1Vol) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-green-500">卖一</span>
+                      <span class="font-mono">{{ row.sell1Price || '-' }}</span>
+                      <span class="text-muted-foreground ml-1">{{ formatVolumeShort(row.sell1Vol) }}</span>
+                    </div>
+                  </template>
+
                 </div>
               </TableCell>
               <TableCell>
@@ -382,6 +416,41 @@ const {
   toggleRowExpand,
   isRowExpanded
 } = useMonitorData()
+
+// 格式化成交量（手）
+const formatVolumeShort = (vol) => {
+  if (!vol) return '-'
+  if (vol >= 1e4) return (vol / 1e4).toFixed(1) + '万'
+  return vol.toFixed(0)
+}
+
+// 封单分析样式
+const getSealLevelClass = (level) => {
+  switch (level) {
+    case 0: return 'text-green-600'   // 安全
+    case 1: return 'text-yellow-600'  // 注意
+    case 2: return 'text-orange-600'  // 警惕
+    case 3: return 'text-red-600'     // 高危
+    default: return 'text-gray-600'
+  }
+}
+
+const getTrendClass = (trend) => {
+  switch (trend) {
+    case 'strengthen': return 'text-green-600'
+    case 'stable': return 'text-gray-600'
+    case 'weaken': return 'text-orange-600'
+    case 'crash': return 'text-red-600 font-medium'
+    default: return 'text-gray-400'
+  }
+}
+
+const formatMoney = (amount) => {
+  if (!amount) return '-'
+  if (amount >= 1e8) return (amount / 1e8).toFixed(2) + '亿'
+  if (amount >= 1e4) return (amount / 1e4).toFixed(2) + '万'
+  return amount.toFixed(0) + '元'
+}
 
 // Helper functions for template
 const getRowClass = (row) => {

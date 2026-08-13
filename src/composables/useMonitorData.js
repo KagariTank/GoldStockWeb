@@ -9,6 +9,11 @@ const inputCodes = ref('')
 const tableData = ref([])
 const loading = ref(false)
 
+// 封单追踪
+const _prevSealMap = new Map()  // { code: { buy1Vol, sell1Vol } }
+const _sealHistoryMap = new Map()  // { code: [{ time, buy1Vol, sell1Vol }, ...] }
+const _SEAL_HISTORY_MAX = 30  // 保存最近30条记录（约15分钟）
+
 // Auto refresh - 使用统一定时器管理
 const _monitorTimer = createAutoRefreshTimer('monitor', {
   onRefresh: () => {
@@ -200,6 +205,195 @@ const checkAlertsForRow = (row, skipNotify = false) => {
 const checkAllAlerts = (skipNotify = false) => {
   tableData.value.forEach(row => ensureFields(row))
   tableData.value.forEach(row => checkAlertsForRow(row, skipNotify))
+  if (!skipNotify) checkSealAlerts()
+}
+
+// 判断股票的涨停/跌停幅度
+function getLimitPct(code) {
+  // ST股票：5%
+  if (code.includes('ST')) return 0.05
+  // 科创板 688开头：20%
+  if (code.startsWith('sh688') || code.startsWith('sh689')) return 0.20
+  if (code.startsWith('688') || code.startsWith('689')) return 0.20
+  // 创业板 300/301开头：20%
+  if (code.startsWith('sz300') || code.startsWith('sz301')) return 0.20
+  if (code.startsWith('300') || code.startsWith('301')) return 0.20
+  // 北交所 8开头/4开头：30%
+  if (code.startsWith('bj8') || code.startsWith('bj4')) return 0.30
+  if (code.startsWith('8') || code.startsWith('4')) return 0.30
+  // 默认主板：10%
+  return 0.10
+}
+
+// 判断是否涨停
+function isLimitUp(row) {
+  const prevClose = row.prevClose || 0
+  const currPrice = row.now || 0
+  const buy1Price = row.buy1Price || 0
+  const limitPct = getLimitPct(row.fullCode)
+  
+  if (prevClose <= 0 || currPrice <= 0) return false
+  
+  const limitPrice = prevClose * (1 + limitPct)
+  // 现价达到涨停价（允许0.5%误差）且买一价=现价（有封单）
+  return currPrice >= limitPrice * 0.995 && buy1Price > 0 && Math.abs(buy1Price - currPrice) < 0.01
+}
+
+// 判断是否跌停
+function isLimitDown(row) {
+  const prevClose = row.prevClose || 0
+  const currPrice = row.now || 0
+  const sell1Price = row.sell1Price || 0
+  const limitPct = getLimitPct(row.fullCode)
+  
+  if (prevClose <= 0 || currPrice <= 0) return false
+  
+  const limitPrice = prevClose * (1 - limitPct)
+  // 现价达到跌停价（允许0.5%误差）且卖一价=现价（有封单）
+  return currPrice <= limitPrice * 1.005 && sell1Price > 0 && Math.abs(sell1Price - currPrice) < 0.01
+}
+
+// 根据市值获取安全阈值
+function getSealThreshold(marketCap) {
+  if (marketCap < 30e8) return { safe: 3, danger: 1 }      // <30亿
+  if (marketCap < 100e8) return { safe: 2, danger: 0.8 }   // 30~100亿
+  if (marketCap < 300e8) return { safe: 1.5, danger: 0.5 } // 100~300亿
+  if (marketCap < 1000e8) return { safe: 1, danger: 0.3 }  // 300~1000亿
+  return { safe: 0.5, danger: 0.15 }                       // >1000亿
+}
+
+const checkSealAlerts = () => {
+  tableData.value.forEach(row => {
+    const code = row.fullCode
+    const name = row.name
+    const currBuyVol = row.buy1Vol || 0
+    const currSellVol = row.sell1Vol || 0
+    const currBuyPrice = row.buy1Price || 0
+    const currSellPrice = row.sell1Price || 0
+    const currPrice = row.now || 0
+    const marketCapFloat = row.marketCapFloat || 0  // 流通市值（亿）
+
+    // 先判断是否涨停/跌停
+    const limitUp = isLimitUp(row)
+    const limitDown = isLimitDown(row)
+    
+    // 清除之前的分析结果
+    if (!limitUp && !limitDown) {
+      row.sealAnalysis = null
+      _prevSealMap.delete(code)
+      _sealHistoryMap.delete(code)
+      return
+    }
+
+    const limitType = limitUp ? '涨停' : '跌停'
+    const sealVol = limitUp ? currBuyVol : currSellVol  // 封单量（手）
+    const sealPrice = limitUp ? currBuyPrice : currSellPrice
+
+    // 计算封单金额 = 封单量(手) × 100股/手 × 价格
+    const sealAmount = sealVol * 100 * sealPrice
+
+    // 使用接口返回的流通市值（亿），转换为元
+    const marketCap = marketCapFloat * 1e8
+
+    // 封单占比 = 封单金额 / 流通市值 × 100%
+    const sealPct = marketCap > 0 ? (sealAmount / marketCap) * 100 : 0
+
+    // 获取阈值
+    const threshold = getSealThreshold(marketCapFloat * 1e8)
+
+    // 记录历史数据（保存封单金额用于趋势判定）
+    const now = new Date()
+    const timeKey = now.getHours() * 60 + now.getMinutes()
+    const history = _sealHistoryMap.get(code) || []
+    history.push({ time: timeKey, sealAmount: sealAmount })
+    if (history.length > _SEAL_HISTORY_MAX) history.shift()
+    _sealHistoryMap.set(code, history)
+
+    // 趋势判定（对比5分钟前）
+    let trend = 'new'  // new/增强/稳定/减弱/骤减
+    let trendDesc = '数据不足'
+    if (history.length >= 10) {
+      const fiveMinAgo = history[history.length - 10]
+      if (fiveMinAgo.sealAmount > 0) {
+        const change = (sealAmount - fiveMinAgo.sealAmount) / fiveMinAgo.sealAmount
+        if (change > 0.05) {
+          trend = 'strengthen'
+          trendDesc = `封单增强(+${(change * 100).toFixed(1)}%)`
+        } else if (change >= -0.05) {
+          trend = 'stable'
+          trendDesc = `封单稳定(${(change * 100).toFixed(1)}%)`
+        } else if (change >= -0.30) {
+          trend = 'weaken'
+          trendDesc = `封单减弱预警(${(change * 100).toFixed(1)}%)`
+        } else {
+          trend = 'crash'
+          trendDesc = `封单骤减(危险)(${(change * 100).toFixed(1)}%)`
+        }
+      }
+    }
+
+    // 输出等级
+    let level = 0  // 0=安全, 1=注意, 2=警惕, 3=高危
+    let levelLabel = ''
+
+    if (trend === 'crash' || sealPct < threshold.danger) {
+      // 高危：封单骤减 或 封单占比低于危险阈值
+      level = 3
+      levelLabel = '高危（随时炸板）'
+    } else if (sealPct >= threshold.safe && (trend === 'strengthen' || trend === 'stable' || trend === 'new')) {
+      // 安全：封单占比 ≥ 安全阈值 且 趋势为增强或稳定
+      level = 0
+      levelLabel = '安全'
+    } else if (sealPct >= threshold.safe && trend === 'weaken') {
+      // 注意：封单占比 ≥ 安全阈值 但趋势减弱
+      level = 1
+      levelLabel = '注意'
+    } else {
+      // 警惕：封单占比介于安全与危险之间
+      level = 2
+      levelLabel = '警惕'
+    }
+
+    // 保存风险评估结果
+    row.sealAnalysis = {
+      limitType: limitType,
+      sealAmount: sealAmount,
+      sealPct: sealPct.toFixed(2),
+      marketCap: marketCap,
+      threshold: threshold,
+      trend: trend,
+      trendDesc: trendDesc,
+      level: level,
+      levelLabel: levelLabel
+    }
+
+    // 高危触发告警
+    if (level === 3) {
+      const dangerMsg = [
+        `当前股价: ${currPrice}`,
+        `${limitType}封单金额: ${formatMoney(sealAmount)}`,
+        `封单占比: ${sealPct.toFixed(2)}%（危险阈值${threshold.danger}%）`,
+        `趋势: ${trendDesc}`,
+      ]
+      
+      fireNotify(
+        '🔴 封单高危',
+        `${name}(${code}) ${levelLabel}，${dangerMsg.join(' | ')}`,
+        2,
+        isFileProtocol.value,
+        selectedVoice
+      )
+    }
+
+    _prevSealMap.set(code, { sealAmount: sealAmount })
+  })
+}
+
+// 格式化金额
+function formatMoney(amount) {
+  if (amount >= 1e8) return (amount / 1e8).toFixed(2) + '亿'
+  if (amount >= 1e4) return (amount / 1e4).toFixed(2) + '万'
+  return amount.toFixed(0) + '元'
 }
 
 const fetchData = (codes, isAddition = true) => {
@@ -235,11 +429,33 @@ const fetchData = (codes, isAddition = true) => {
 
         const existingIndex = tableData.value.findIndex(item => item.fullCode === code)
 
+        // 解析买卖盘口数据
+        const buy1Price = parseFloat(d[9]) || 0
+        const buy1Vol = parseFloat(d[10]) || 0
+        const sell1Price = parseFloat(d[19]) || 0
+        const sell1Vol = parseFloat(d[20]) || 0
+        
+        // 解析封单分析所需字段
+        const turnoverVol = parseFloat(d[36]) || 0  // 成交量（手）
+        const timeStr = d[30] || ''  // 时间 HHMMSS
+        const changePct = parseFloat(d[32]) || 0  // 涨跌幅
+        const outstandingShares = parseFloat(d[38]) || 0  // 流通股本（万股）
+        const marketCapFloat = parseFloat(d[44]) || 0  // 流通市值（亿）
+
         if (existingIndex > -1) {
           const item = tableData.value[existingIndex]
           item.now = nowPrice
           item.prevClose = prevClosePrice
           item.avg = parseFloat(newAvg.toFixed(3))
+          item.buy1Price = buy1Price
+          item.buy1Vol = buy1Vol
+          item.sell1Price = sell1Price
+          item.sell1Vol = sell1Vol
+          item.turnoverVol = turnoverVol
+          item.time = timeStr
+          item.changePct = changePct
+          item.outstandingShares = outstandingShares  // 流通股本（万股）
+          item.marketCapFloat = marketCapFloat  // 流通市值（亿）
           ensureFields(item)
           if (nowPrice > (parseFloat(item.maxSinceBuy) || 0)) item.maxSinceBuy = parseFloat(nowPrice.toFixed(3))
           calculateRow(item, saveToLocal)
@@ -252,6 +468,15 @@ const fetchData = (codes, isAddition = true) => {
             high: parseFloat(d[33]) || nowPrice,
             low: parseFloat(d[34]) || nowPrice,
             avg: parseFloat(newAvg.toFixed(3)),
+            buy1Price,
+            buy1Vol,
+            sell1Price,
+            sell1Vol,
+            turnoverVol,
+            time: timeStr,
+            changePct,
+            outstandingShares: outstandingShares,  // 流通股本（万股）
+            marketCapFloat: marketCapFloat,  // 流通市值（亿）
             f382: 0, f618: 0, f786: 0,
             topLine: 0, bottomLine: 0,
             buyPrice: 0,
