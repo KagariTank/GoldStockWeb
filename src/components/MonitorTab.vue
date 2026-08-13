@@ -29,8 +29,8 @@
             <TableHead class="w-10"></TableHead>
             <TableHead label="项目 / 编号" class="min-w-[140px]" />
             <TableHead label="当前值 / 波动" class="w-[160px]" />
-            <TableHead label="盘口/封单" class="w-[180px]" />
-            <TableHead label="均线" class="w-[80px]" />
+            <TableHead label="均线" class="w-[100px]" />
+            <TableHead label="盘口/封单" class="w-[150px]" />
             <TableHead label="止盈止损" class="w-[170px]" />
             <TableHead label="距离(%)" class="w-[130px]" />
             <TableHead label="黄金分割线" class="w-[210px]" />
@@ -99,6 +99,9 @@
                   {{ formatChg(row) }}
                 </div>
               </TableCell>
+               <TableCell>
+                <span class="font-mono text-blue-600">{{ row.avg }}</span>
+              </TableCell>
               <TableCell>
                 <div class="text-xs space-y-0.5 pr-2">
                   <!-- 封单分析 -->
@@ -118,22 +121,17 @@
                     </div>
                   </template>
                   <template v-else>
-                  <div class="flex justify-between">
-                    <span class="text-red-500">买一</span>
-                      <span class="font-mono">{{ row.buy1Price || '-' }}</span>
-                      <span class="text-muted-foreground ml-1">{{ formatVolumeShort(row.buy1Vol) }}</span>
+                     <div class="flex justify-between">
+                      <span class="font-mono text-green-500">{{ row.sell1Price || '-' }}</span>
+                      <span class="text-muted-foreground ml-1">{{ formatMoney(row.sell1Vol * 100 * row.sell1Price) }}</span>
                     </div>
-                    <div class="flex justify-between">
-                      <span class="text-green-500">卖一</span>
-                      <span class="font-mono">{{ row.sell1Price || '-' }}</span>
-                      <span class="text-muted-foreground ml-1">{{ formatVolumeShort(row.sell1Vol) }}</span>
+                     <div class="flex justify-between">
+                      <span class="font-mono text-red-500">{{ row.buy1Price || '-' }}</span>
+                      <span class="text-muted-foreground ml-1">{{ formatMoney(row.buy1Vol * 100 * row.buy1Price) }}</span>
                     </div>
                   </template>
 
                 </div>
-              </TableCell>
-              <TableCell>
-                <span class="font-mono text-blue-600">{{ row.avg }}</span>
               </TableCell>
               <TableCell>
                 <div class="text-sm">
