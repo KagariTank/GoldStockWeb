@@ -8,6 +8,11 @@ const tableData = ref([])
 const loading = ref(false)
 const lastUpdate = ref('')
 
+// 历史快照缓冲（用于蜡烛图）
+// 每条快照: { timestamp, totalNetInflow, sectors: [{ code, name, mainNetInflow }] }
+const MAX_HISTORY = 120 // 保留最近 120 条（30s 间隔 ≈ 1 小时）
+const historySnapshots = ref([])
+
 // 自动刷新 - 使用统一定时器管理
 const _sectorTimer = createAutoRefreshTimer('sector', {
   onRefresh: () => {
@@ -212,6 +217,25 @@ async function fetchData() {
       }
       _alertInitialized = true
     }
+
+    // 记录历史快照（用于蜡烛图）
+    const totalNetInflow = tableData.value.reduce((sum, row) => {
+      const v = parseFloat(row.mainNetInflow) || 0
+      return sum + v
+    }, 0)
+    const snapshot = {
+      timestamp: now.getTime(),
+      totalNetInflow,
+      sectors: tableData.value.map(row => ({
+        code: row.code,
+        name: row.name,
+        mainNetInflow: row.mainNetInflow
+      }))
+    }
+    historySnapshots.value.push(snapshot)
+    if (historySnapshots.value.length > MAX_HISTORY) {
+      historySnapshots.value = historySnapshots.value.slice(-MAX_HISTORY)
+    }
   } catch (e) {
     console.error('板块资金流向获取失败:', e)
   } finally {
@@ -226,9 +250,10 @@ function toggleAutoRefresh() {
 
 // 切换板块类型
 function onSectorTypeChange() {
-  // 切换板块类型时重置告警基线
+  // 切换板块类型时重置告警基线和历史快照
   _prevSnapshot = null
   _alertInitialized = false
+  historySnapshots.value = []
   fetchData()
 }
 
@@ -247,6 +272,7 @@ export function useSectorFundFlow(voiceRef) {
     alertEnabled,
     isFileProtocol,
     selectedVoice,
+    historySnapshots,
     fetchData,
     toggleAutoRefresh,
     onSectorTypeChange,

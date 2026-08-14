@@ -70,88 +70,101 @@
       </span>
     </div>
 
-    <!-- ECharts 柱状图：流入前5 + 流出前5 -->
-    <div v-if="tableData.length > 0" class="border rounded-lg mb-4 p-2">
-      <div class="px-2 mb-2">
-        <span class="text-sm font-medium">主力净流入 — 流入前5 & 流出前5</span>
+
+    <div class="flex-1 overflow-auto">
+        <!-- ECharts 柱状图：流入前5 + 流出前5 -->
+      <div v-if="tableData.length > 0" class="border rounded-lg mb-4 p-2">
+        <div class="px-2 mb-2">
+          <span class="text-sm font-medium">主力净流入 — 流入前5 & 流出前5</span>
+        </div>
+        <div ref="chartRef" class="w-full" style="height: 320px"></div>
       </div>
-      <div ref="chartRef" class="w-full" style="height: 320px"></div>
+
+      <!-- ECharts 蜡烛图：流入前5 + 流出前5 板块日内K线 -->
+      <div v-if="sectorCandleData.length > 0" class="border rounded-lg mb-4 p-2">
+        <div class="px-2 mb-2 flex items-center gap-2">
+          <span class="text-sm font-medium">板块日内K线 — 流入前5 & 流出前5</span>
+          <span class="text-xs text-muted-foreground">今日累计资金变化 · 每 30 秒刷新 · 共 {{ historySnapshots.length }} 次记录</span>
+        </div>
+        <div ref="candleChartRef" class="w-full" style="height: 340px"></div>
+      </div>
+
+      <!-- Table -->
+      <div class="border rounded-lg overflow-auto flex-1">
+        <Table :data="sortedData" :loading="loading">
+          <TableHeader>
+            <TableRow>
+              <TableHead label="#" class="w-[50px]" />
+              <TableHead class="min-w-[120px]">
+                <SortableHeader label="板块名称" sort-key="name" :current="sortKey" :order="sortOrder" @sort="onSort" />
+              </TableHead>
+              <TableHead class="w-[100px]">
+                <SortableHeader label="涨跌幅" sort-key="changePercent" :current="sortKey" :order="sortOrder" @sort="onSort" />
+              </TableHead>
+              <TableHead class="w-[120px]">
+                <SortableHeader label="主力净流入" sort-key="mainNetInflow" :current="sortKey" :order="sortOrder" @sort="onSort" />
+              </TableHead>
+              <TableHead class="w-[100px]">
+                <SortableHeader label="主力净占比" sort-key="mainNetInflowPercent" :current="sortKey" :order="sortOrder" @sort="onSort" />
+              </TableHead>
+              <TableHead class="w-[110px]">
+                <SortableHeader label="超大单" sort-key="superLargeNetInflow" :current="sortKey" :order="sortOrder" @sort="onSort" />
+              </TableHead>
+              <TableHead class="w-[110px]">
+                <SortableHeader label="大单" sort-key="largeNetInflow" :current="sortKey" :order="sortOrder" @sort="onSort" />
+              </TableHead>
+              <TableHead label="领涨股" class="min-w-[120px]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="(row, index) in sortedData" :key="row.code">
+              <TableCell>
+                <span class="text-muted-foreground text-sm">{{ index + 1 }}</span>
+              </TableCell>
+              <TableCell>
+                <span class="font-medium">{{ row.name }}</span>
+              </TableCell>
+              <TableCell>
+                <span
+                  class="font-mono font-semibold"
+                  :class="getChangeClass(row.changePercent)"
+                >
+                  {{ formatPercent(row.changePercent) }}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span class="font-mono font-semibold" :class="getFlowClass(row.mainNetInflow)">
+                  {{ formatAmount(row.mainNetInflow) }}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span class="font-mono" :class="getFlowClass(row.mainNetInflowPercent)">
+                  {{ formatPercent(row.mainNetInflowPercent) }}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span class="font-mono text-sm" :class="getFlowClass(row.superLargeNetInflow)">
+                  {{ formatAmount(row.superLargeNetInflow) }}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span class="font-mono text-sm" :class="getFlowClass(row.largeNetInflow)">
+                  {{ formatAmount(row.largeNetInflow) }}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span v-if="row.topStockName" class="text-sm">
+                  {{ row.topStockName }}
+                  <span class="text-xs text-muted-foreground ml-1">{{ row.topStockCode }}</span>
+                </span>
+                <span v-else>-</span>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
     </div>
 
-    <!-- Table -->
-    <div class="border rounded-lg overflow-auto flex-1">
-      <Table :data="sortedData" :loading="loading">
-        <TableHeader>
-          <TableRow>
-            <TableHead label="#" class="w-[50px]" />
-            <TableHead class="min-w-[120px]">
-              <SortableHeader label="板块名称" sort-key="name" :current="sortKey" :order="sortOrder" @sort="onSort" />
-            </TableHead>
-            <TableHead class="w-[100px]">
-              <SortableHeader label="涨跌幅" sort-key="changePercent" :current="sortKey" :order="sortOrder" @sort="onSort" />
-            </TableHead>
-            <TableHead class="w-[120px]">
-              <SortableHeader label="主力净流入" sort-key="mainNetInflow" :current="sortKey" :order="sortOrder" @sort="onSort" />
-            </TableHead>
-            <TableHead class="w-[100px]">
-              <SortableHeader label="主力净占比" sort-key="mainNetInflowPercent" :current="sortKey" :order="sortOrder" @sort="onSort" />
-            </TableHead>
-            <TableHead class="w-[110px]">
-              <SortableHeader label="超大单" sort-key="superLargeNetInflow" :current="sortKey" :order="sortOrder" @sort="onSort" />
-            </TableHead>
-            <TableHead class="w-[110px]">
-              <SortableHeader label="大单" sort-key="largeNetInflow" :current="sortKey" :order="sortOrder" @sort="onSort" />
-            </TableHead>
-            <TableHead label="领涨股" class="min-w-[120px]" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow v-for="(row, index) in sortedData" :key="row.code">
-            <TableCell>
-              <span class="text-muted-foreground text-sm">{{ index + 1 }}</span>
-            </TableCell>
-            <TableCell>
-              <span class="font-medium">{{ row.name }}</span>
-            </TableCell>
-            <TableCell>
-              <span
-                class="font-mono font-semibold"
-                :class="getChangeClass(row.changePercent)"
-              >
-                {{ formatPercent(row.changePercent) }}
-              </span>
-            </TableCell>
-            <TableCell>
-              <span class="font-mono font-semibold" :class="getFlowClass(row.mainNetInflow)">
-                {{ formatAmount(row.mainNetInflow) }}
-              </span>
-            </TableCell>
-            <TableCell>
-              <span class="font-mono" :class="getFlowClass(row.mainNetInflowPercent)">
-                {{ formatPercent(row.mainNetInflowPercent) }}
-              </span>
-            </TableCell>
-            <TableCell>
-              <span class="font-mono text-sm" :class="getFlowClass(row.superLargeNetInflow)">
-                {{ formatAmount(row.superLargeNetInflow) }}
-              </span>
-            </TableCell>
-            <TableCell>
-              <span class="font-mono text-sm" :class="getFlowClass(row.largeNetInflow)">
-                {{ formatAmount(row.largeNetInflow) }}
-              </span>
-            </TableCell>
-            <TableCell>
-              <span v-if="row.topStockName" class="text-sm">
-                {{ row.topStockName }}
-                <span class="text-xs text-muted-foreground ml-1">{{ row.topStockCode }}</span>
-              </span>
-              <span v-else>-</span>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
-    </div>
   </div>
 </template>
 
@@ -170,6 +183,7 @@ const {
   autoRefresh,
   countdown,
   alertEnabled,
+  historySnapshots,
   fetchData,
   toggleAutoRefresh,
   onSectorTypeChange,
@@ -373,9 +387,174 @@ watch(chartData, () => {
   })
 }, { deep: true })
 
+// ===== ECharts 蜡烛图（板块日内K线） =====
+const candleChartRef = ref(null)
+let candleChart = null
+
+// 选取流入前5 + 流出前5 板块（与柱状图排名一致）
+const top10Sectors = computed(() => {
+  if (tableData.value.length === 0) return []
+  const sorted = [...tableData.value].sort((a, b) => b.mainNetInflow - a.mainNetInflow)
+  const top5In = sorted.slice(0, 5)
+  const top5Out = sorted.slice(-5)
+  // 排序：流入前5（正）+ 流出前5（负），整体按 mainNetInflow 降序
+  return [...top5In, ...top5Out]
+})
+
+// 为每个板块聚合日内 OHLC
+// 每根蜡烛 = 一个板块当天的资金累计变化：
+//   Open: 日内首次快照的累计净流入
+//   Close: 最新快照的累计净流入
+//   High: 日内所有快照的最大累计净流入
+//   Low:  日内所有快照的最小累计净流入
+const sectorCandleData = computed(() => {
+  const sectors = top10Sectors.value
+  const snaps = historySnapshots.value
+  if (sectors.length === 0 || snaps.length === 0) return []
+
+  const result = []
+
+  for (const sector of sectors) {
+    const code = sector.code
+    const name = sector.name
+
+    // 收集该板块在所有快照中的值
+    const values = []
+    for (const snap of snaps) {
+      const s = snap.sectors.find(x => x.code === code)
+      if (s) {
+        const v = parseFloat(s.mainNetInflow)
+        if (!isNaN(v)) values.push(v)
+      }
+    }
+
+    if (values.length < 1) continue
+
+    const open = values[0]
+    const close = values[values.length - 1]
+    const high = Math.max(...values)
+    const low = Math.min(...values)
+
+    result.push({
+      code,
+      name,
+      // ECharts candlestick: [open, close, low, high]，单位：亿元
+      data: [
+        +(open / 1e8).toFixed(2),
+        +(close / 1e8).toFixed(2),
+        +(low / 1e8).toFixed(2),
+        +(high / 1e8).toFixed(2)
+      ],
+      // 最新值用于 tooltip 显示
+      latest: +(close / 1e8).toFixed(2),
+      change: +((close - open) / 1e8).toFixed(2)
+    })
+  }
+
+  return result
+})
+
+function buildCandleChartOption() {
+  const candles = sectorCandleData.value
+  if (candles.length === 0) return {}
+
+  const names = candles.map(c => c.name.length > 6 ? c.name.slice(0, 5) + '..' : c.name)
+  const values = candles.map(c => c.data)
+
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: 'rgba(50, 50, 50, 0.9)',
+      borderWidth: 0,
+      textStyle: { color: '#fff', fontSize: 12 },
+      padding: [8, 12],
+      formatter: (params) => {
+        const p = params[0]
+        if (!p) return ''
+        const candle = candles[p.dataIndex]
+        if (!candle) return ''
+        const [open, close, low, high] = candle.data
+        const change = candle.change
+        const isUp = close >= open
+        const color = isUp ? '#ff6b6b' : '#26de81'
+        return `<div style="font-weight:600;margin-bottom:4px">${candle.name}</div>
+                <div>开盘: <span style="font-weight:700">${open.toFixed(2)}亿</span></div>
+                <div>收盘: <span style="font-weight:700;color:${color}">${close.toFixed(2)}亿</span></div>
+                <div>最高: <span style="font-weight:700">${high.toFixed(2)}亿</span></div>
+                <div>最低: <span style="font-weight:700">${low.toFixed(2)}亿</span></div>
+                <div>变化: <span style="font-weight:700;color:${color}">${change >= 0 ? '+' : ''}${change.toFixed(2)}亿</span></div>`
+      }
+    },
+    grid: { left: 60, right: 25, top: 25, bottom: 60 },
+    xAxis: {
+      type: 'category',
+      data: names,
+      axisLabel: {
+        fontSize: 12,
+        fontWeight: 60,
+        color: '#444',
+        interval: 0,
+        rotate: 25
+      },
+      axisLine: { lineStyle: { color: '#ccc' } },
+      axisTick: { show: false }
+    },
+    yAxis: {
+      type: 'value',
+      name: '亿元',
+      nameTextStyle: { fontSize: 12, color: '#666' },
+      axisLabel: { fontSize: 11, color: '#666' },
+      splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }
+    },
+    series: [{
+      type: 'candlestick',
+      data: values,
+      barWidth: '55%',
+      itemStyle: {
+        // 阳线（净流入增加）：红色
+        color: '#ff6b6b',
+        // 阴线（净流入减少）：绿色
+        color0: '#26de81',
+        borderColor: '#ff6b6b',
+        borderColor0: '#26de81',
+        borderWidth: 1
+      },
+      markLine: {
+        silent: true,
+        symbol: 'none',
+        lineStyle: { color: '#bbb', type: 'solid', width: 1 },
+        data: [{ yAxis: 0 }],
+        label: { show: false }
+      },
+      animationDuration: 500,
+      animationEasing: 'cubicOut'
+    }]
+  }
+}
+
+function updateCandleChart() {
+  if (!candleChart) return
+  candleChart.setOption(buildCandleChartOption(), { notMerge: true })
+}
+
+watch(sectorCandleData, () => {
+  nextTick(() => {
+    if (!candleChart && candleChartRef.value) {
+      candleChart = echarts.init(candleChartRef.value)
+      window.addEventListener('resize', handleResize)
+    }
+    updateCandleChart()
+  })
+}, { deep: true })
+
 onMounted(() => {
   if (chartRef.value) {
     chart = echarts.init(chartRef.value)
+    window.addEventListener('resize', handleResize)
+  }
+  if (candleChartRef.value) {
+    candleChart = echarts.init(candleChartRef.value)
     window.addEventListener('resize', handleResize)
   }
 })
@@ -386,10 +565,15 @@ onBeforeUnmount(() => {
     chart.dispose()
     chart = null
   }
+  if (candleChart) {
+    candleChart.dispose()
+    candleChart = null
+  }
 })
 
 function handleResize() {
   chart?.resize()
+  candleChart?.resize()
 }
 
 // 首次加载数据

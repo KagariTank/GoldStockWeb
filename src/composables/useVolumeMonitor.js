@@ -474,11 +474,11 @@ function checkCumulativeDiffAlert() {
 
   if (completedData.length < WINDOW) return
 
-  // 核心：柱子高度 = 累计差额（今日 - 昨日）
+  // 核心：柱子高度 = 累计差额（今日 - 昨日），单位：亿（API 原始单位）
   const recent = completedData.slice(-WINDOW)
   const diffs = recent.map(d => d.todayVol - d.yestVol)
   
-  // 柱子首尾差：diffChange > 0 表示柱子变高（加速），< 0 表示柱子变低（减速）
+  // 柱子首尾差（单位：亿）
   const latestDiff = diffs[diffs.length - 1]
   const firstDiff = diffs[0]
   const diffChange = latestDiff - firstDiff
@@ -489,7 +489,6 @@ function checkCumulativeDiffAlert() {
   console.log('[量能告警] 柱子分析', {
     time: lastPoint.time,
     latestDiff: latestDiff.toFixed(2),
-    firstDiff: firstDiff.toFixed(2),
     diffChange: diffChange.toFixed(2),
     cumulativeRatio: cumulativeRatio.toFixed(4),
     trend: latestDiff < 0 ? '缩量' : '放量',
@@ -503,7 +502,7 @@ function checkCumulativeDiffAlert() {
     if (latestDiff < 0) {
       // 负差额在缩小（柱子从负往零走）→ 缩量减弱
       if (_canAlert('diff_shrink_relief')) {
-        _notify('� 缩量减弱', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，差额收窄 ${diffChange.toFixed(0)}亿`, 2)
+        _notify('📈 缩量减弱', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，差额收窄 ${diffChange.toFixed(0)}亿`, 2)
       }
     } else {
       // 正差额在扩大（柱子继续往上长）→ 放量加速
