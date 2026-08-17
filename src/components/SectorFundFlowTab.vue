@@ -84,7 +84,7 @@
       <div v-if="sectorCandleData.length > 0" class="border rounded-lg mb-4 p-2">
         <div class="px-2 mb-2 flex items-center gap-2">
           <span class="text-sm font-medium">板块日内K线 — 流入前5 & 流出前5</span>
-          <span class="text-xs text-muted-foreground">今日累计资金变化 · 每 30 秒刷新 · 共 {{ historySnapshots.length }} 次记录</span>
+          <span class="text-xs text-muted-foreground">今日累计资金变化 · 每 30 秒刷新</span>
         </div>
         <div ref="candleChartRef" class="w-full" style="height: 340px"></div>
       </div>
@@ -183,7 +183,7 @@ const {
   autoRefresh,
   countdown,
   alertEnabled,
-  historySnapshots,
+  candleSectors,
   fetchData,
   toggleAutoRefresh,
   onSectorTypeChange,
@@ -401,53 +401,27 @@ const top10Sectors = computed(() => {
   return [...top5In, ...top5Out]
 })
 
-// 为每个板块聚合日内 OHLC
-// 每根蜡烛 = 一个板块当天的资金累计变化：
-//   Open: 日内首次快照的累计净流入
-//   Close: 最新快照的累计净流入
-//   High: 日内所有快照的最大累计净流入
-//   Low:  日内所有快照的最小累计净流入
+// 为每个板块聚合日内 OHLC（直接从 candleSectors 读取）
 const sectorCandleData = computed(() => {
   const sectors = top10Sectors.value
-  const snaps = historySnapshots.value
-  if (sectors.length === 0 || snaps.length === 0) return []
+  if (sectors.length === 0) return []
 
   const result = []
-
   for (const sector of sectors) {
-    const code = sector.code
-    const name = sector.name
-
-    // 收集该板块在所有快照中的值
-    const values = []
-    for (const snap of snaps) {
-      const s = snap.sectors.find(x => x.code === code)
-      if (s) {
-        const v = parseFloat(s.mainNetInflow)
-        if (!isNaN(v)) values.push(v)
-      }
-    }
-
-    if (values.length < 1) continue
-
-    const open = values[0]
-    const close = values[values.length - 1]
-    const high = Math.max(...values)
-    const low = Math.min(...values)
+    const agg = candleSectors.value[sector.code]
+    if (!agg) continue
 
     result.push({
-      code,
-      name,
+      code: sector.code,
+      name: sector.name,
       // ECharts candlestick: [open, close, low, high]，单位：亿元
       data: [
-        +(open / 1e8).toFixed(2),
-        +(close / 1e8).toFixed(2),
-        +(low / 1e8).toFixed(2),
-        +(high / 1e8).toFixed(2)
+        +(agg.open / 1e8).toFixed(2),
+        +(agg.close / 1e8).toFixed(2),
+        +(agg.low / 1e8).toFixed(2),
+        +(agg.high / 1e8).toFixed(2)
       ],
-      // 最新值用于 tooltip 显示
-      latest: +(close / 1e8).toFixed(2),
-      change: +((close - open) / 1e8).toFixed(2)
+      change: +((agg.close - agg.open) / 1e8).toFixed(2)
     })
   }
 
