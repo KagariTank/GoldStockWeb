@@ -55,15 +55,12 @@
           <div>⚠️ <span class="text-foreground font-medium">极端缩量</span>　累计比率 < 30% 昨日同期</div>
           <div>📊 <span class="text-foreground font-medium">显著缩量</span>　累计比率 < 50% 昨日同期</div>
         </div>
-<<<<<<< HEAD
         <div class="font-medium mt-3 mb-2">上证指数加权/未加权线信号</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 text-muted-foreground">
           <div>🟢 <span class="text-foreground font-medium">加权线上穿</span>　加权线（蓝）上穿未加权线（黄），权重股领涨</div>
           <div>🔴 <span class="text-foreground font-medium">加权线下穿</span>　加权线（蓝）下穿未加权线（黄），权重股领跌</div>
         </div>
         <div class="font-medium mt-3 mb-1 text-muted-foreground">参考标准：正常 80%-150%，温和放量 150%-250%，显著放量 >250%，显著缩量 50%-80%，极端缩量 <50%</div>
-=======
->>>>>>> 29b638606a0e8e1cf1c7dfc62ff63f49d004aae8
       </div>
 
       <!-- 汇总信息 -->

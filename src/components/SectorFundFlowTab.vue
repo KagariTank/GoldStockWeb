@@ -487,13 +487,23 @@ function buildCandleChartOption() {
       data: values,
       barWidth: '55%',
       itemStyle: {
-        // 阳线（净流入增加）：红色
         color: '#ff6b6b',
-        // 阴线（净流入减少）：绿色
         color0: '#26de81',
         borderColor: '#ff6b6b',
         borderColor0: '#26de81',
         borderWidth: 1
+      },
+      label: {
+        show: true,
+        position: 'top',
+        distance: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#333',
+        formatter: (p) => {
+          const close = p.data[1]
+          return `${close >= 0 ? '+' : ''}${close.toFixed(1)}亿`
+        }
       },
       markLine: {
         silent: true,

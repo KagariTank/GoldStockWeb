@@ -474,54 +474,48 @@ function checkCumulativeDiffAlert() {
 
   if (completedData.length < WINDOW) return
 
-  // 核心：柱子高度 = 累计差额（今日 - 昨日），单位：亿（API 原始单位）
+  // 核心：柱子高度 = 累计差额（今日 - 昨日），单位：元
   const recent = completedData.slice(-WINDOW)
   const diffs = recent.map(d => d.todayVol - d.yestVol)
   
-  // 柱子首尾差（单位：亿）
+  // 柱子首尾差（元）→ 转亿元
   const latestDiff = diffs[diffs.length - 1]
   const firstDiff = diffs[0]
-  const diffChange = latestDiff - firstDiff
-  
-  const lastPoint = recent[recent.length - 1]
-  const cumulativeRatio = lastPoint.yestVol > 0 ? lastPoint.todayVol / lastPoint.yestVol : 1
+  const diffChangeYuan = latestDiff - firstDiff
+  const latestDiffYi = latestDiff / 1e8
+  const diffChangeYi = diffChangeYuan / 1e8
 
   console.log('[量能告警] 柱子分析', {
     time: lastPoint.time,
-    latestDiff: latestDiff.toFixed(2),
-    diffChange: diffChange.toFixed(2),
-    cumulativeRatio: cumulativeRatio.toFixed(4),
-    trend: latestDiff < 0 ? '缩量' : '放量',
-    speed: diffChange > 0 ? '加速' : diffChange < 0 ? '减速' : '平稳'
+    latestDiffYi: latestDiffYi.toFixed(2),
+    diffChangeYi: diffChangeYi.toFixed(2),
+    trend: latestDiffYi < 0 ? '缩量' : '放量',
+    speed: diffChangeYi > 0 ? '加速' : diffChangeYi < 0 ? '减速' : '平稳'
   })
 
-  const DIFF_THRESHOLD = 30  // 30亿最小变化量，过滤噪音
+  const DIFF_THRESHOLD_YI = 30  // 30亿最小变化量，过滤噪音
 
   // 1. 柱子变高 → 加速
-  if (diffChange > DIFF_THRESHOLD) {
-    if (latestDiff < 0) {
-      // 负差额在缩小（柱子从负往零走）→ 缩量减弱
+  if (diffChangeYi > DIFF_THRESHOLD_YI) {
+    if (latestDiffYi < 0) {
       if (_canAlert('diff_shrink_relief')) {
-        _notify('📈 缩量减弱', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，差额收窄 ${diffChange.toFixed(0)}亿`, 2)
+        _notify('📈 缩量减弱', `当前差额 ${latestDiffYi.toFixed(0)}亿，收窄 ${diffChangeYi.toFixed(0)}亿`, 2)
       }
     } else {
-      // 正差额在扩大（柱子继续往上长）→ 放量加速
       if (_canAlert('diff_expand_speed')) {
-        _notify('🚀 放量加速', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，差额扩大 ${diffChange.toFixed(0)}亿`, 2)
+        _notify('🚀 放量加速', `当前差额 +${latestDiffYi.toFixed(0)}亿，扩大 +${diffChangeYi.toFixed(0)}亿`, 2)
       }
     }
   }
   // 2. 柱子变低 → 减速
-  else if (diffChange < -DIFF_THRESHOLD) {
-    if (latestDiff < 0) {
-      // 负差额在扩大（柱子往更负的方向走）→ 缩量加速
+  else if (diffChangeYi < -DIFF_THRESHOLD_YI) {
+    if (latestDiffYi < 0) {
       if (_canAlert('diff_shrink_speed')) {
-        _notify('⚠️ 缩量加速', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，差额扩大 ${Math.abs(diffChange).toFixed(0)}亿`, 1)
+        _notify('⚠️ 缩量加速', `当前差额 ${latestDiffYi.toFixed(0)}亿，扩大 ${Math.abs(diffChangeYi).toFixed(0)}亿`, 1)
       }
     } else {
-      // 正差额在收窄（柱子往下回落）→ 放量减弱
       if (_canAlert('diff_expand_decrease')) {
-        _notify('📉 放量减弱', `今日为昨日 ${(cumulativeRatio * 100).toFixed(0)}%，差额收窄 ${Math.abs(diffChange).toFixed(0)}亿`, 2)
+        _notify('📉 放量减弱', `当前差额 +${latestDiffYi.toFixed(0)}亿，收窄 ${Math.abs(diffChangeYi).toFixed(0)}亿`, 2)
       }
     }
   }
