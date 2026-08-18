@@ -415,13 +415,14 @@ const sectorCandleData = computed(() => {
       code: sector.code,
       name: sector.name,
       // ECharts candlestick: [open, close, low, high]，单位：亿元
+      // open 恒为 0（日内资金从 0 开始累计）
       data: [
-        +(agg.open / 1e8).toFixed(2),
+        0,
         +(agg.close / 1e8).toFixed(2),
         +(agg.low / 1e8).toFixed(2),
         +(agg.high / 1e8).toFixed(2)
       ],
-      change: +((agg.close - agg.open) / 1e8).toFixed(2)
+      change: +(agg.close / 1e8).toFixed(2)
     })
   }
 

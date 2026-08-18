@@ -230,24 +230,21 @@ async function fetchData() {
     }
     _currentDate = todayKey
 
-    // 更新每个板块的 OHLC
+    // 更新每个板块的日内K线数据（open 恒为 0，只存 close/high/low）
     for (const row of tableData.value) {
       const code = row.code
       const value = parseFloat(row.mainNetInflow) || 0
       const existing = candleSectors.value[code]
 
       if (!existing) {
-        // 首次记录：open = close = high = low = 当前值
         candleSectors.value[code] = {
           code,
           name: row.name,
-          open: value,
           close: value,
           high: value,
           low: value
         }
       } else {
-        // 更新：close = 当前值，high/low 取极值
         existing.close = value
         if (value > existing.high) existing.high = value
         if (value < existing.low) existing.low = value
