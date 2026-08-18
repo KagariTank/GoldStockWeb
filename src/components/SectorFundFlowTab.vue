@@ -81,12 +81,15 @@
       </div>
 
       <!-- ECharts 蜡烛图：流入前5 + 流出前5 板块日内K线 -->
-      <div v-if="sectorCandleData.length > 0" class="border rounded-lg mb-4 p-2">
+      <div class="border rounded-lg mb-4 p-2">
         <div class="px-2 mb-2 flex items-center gap-2">
           <span class="text-sm font-medium">板块日内K线 — 流入前5 & 流出前5</span>
           <span class="text-xs text-muted-foreground">今日累计资金变化 · 每 30 秒刷新</span>
         </div>
-        <div ref="candleChartRef" class="w-full" style="height: 340px"></div>
+        <div v-if="sectorCandleData.length === 0 && !loading" class="flex items-center justify-center text-muted-foreground text-sm" style="height: 340px">
+          等待数据...
+        </div>
+        <div v-else ref="candleChartRef" class="w-full" style="height: 340px"></div>
       </div>
 
       <!-- Table -->
@@ -461,7 +464,7 @@ function buildCandleChartOption() {
                 <div>变化: <span style="font-weight:700;color:${color}">${change >= 0 ? '+' : ''}${change.toFixed(2)}亿</span></div>`
       }
     },
-    grid: { left: 60, right: 25, top: 25, bottom: 60 },
+    grid: { left: 60, right: 25, top: 55, bottom: 60 },
     xAxis: {
       type: 'category',
       data: names,
@@ -482,39 +485,52 @@ function buildCandleChartOption() {
       axisLabel: { fontSize: 11, color: '#666' },
       splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }
     },
-    series: [{
-      type: 'candlestick',
-      data: values,
-      barWidth: '55%',
-      itemStyle: {
-        color: '#ff6b6b',
-        color0: '#26de81',
-        borderColor: '#ff6b6b',
-        borderColor0: '#26de81',
-        borderWidth: 1
-      },
-      label: {
-        show: true,
-        position: 'top',
-        distance: 4,
-        fontSize: 11,
-        fontWeight: 600,
-        color: '#333',
-        formatter: (p) => {
-          const close = p.data[1]
-          return `${close >= 0 ? '+' : ''}${close.toFixed(1)}亿`
-        }
-      },
-      markLine: {
-        silent: true,
-        symbol: 'none',
-        lineStyle: { color: '#bbb', type: 'solid', width: 1 },
-        data: [{ yAxis: 0 }],
-        label: { show: false }
-      },
-      animationDuration: 500,
-      animationEasing: 'cubicOut'
-    }]
+    series: [
+      {
+        type: 'candlestick',
+        data: values,
+        barWidth: '55%',
+        itemStyle: {
+          color: '#ff6b6b',
+          color0: '#26de81',
+          borderColor: '#ff6b6b',
+          borderColor0: '#26de81',
+          borderWidth: 1
+        },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          lineStyle: { color: '#bbb', type: 'solid', width: 1 },
+          data: [{ yAxis: 0 }],
+          label: { show: false }
+        },
+        markPoint: {
+          symbol: 'circle',
+          symbolSize: 4,
+          data: candles.map((c, i) => {
+            const close = c.data[1]
+            const isUp = close >= 0
+            return {
+              coord: [i, close],
+              value: close,
+              itemStyle: { color: isUp ? '#ee5a52' : '#20bf6b' },
+              label: {
+                show: true,
+                position: isUp ? 'top' : 'bottom',
+                distance: 10,
+                fontSize: 11,
+                fontWeight: 'bold',
+                color: isUp ? '#ee5a52' : '#20bf6b',
+                formatter: `${close >= 0 ? '+' : ''}${close.toFixed(1)}亿`
+              }
+            }
+          }),
+          z: 10
+        },
+        animationDuration: 500,
+        animationEasing: 'cubicOut'
+      }
+    ]
   }
 }
 
@@ -525,11 +541,13 @@ function updateCandleChart() {
 
 watch(sectorCandleData, () => {
   nextTick(() => {
-    if (!candleChart && candleChartRef.value) {
-      candleChart = echarts.init(candleChartRef.value)
-      window.addEventListener('resize', handleResize)
+    if (candleChartRef.value) {
+      if (!candleChart) {
+        candleChart = echarts.init(candleChartRef.value)
+        window.addEventListener('resize', handleResize)
+      }
+      updateCandleChart()
     }
-    updateCandleChart()
   })
 }, { deep: true })
 
@@ -538,10 +556,7 @@ onMounted(() => {
     chart = echarts.init(chartRef.value)
     window.addEventListener('resize', handleResize)
   }
-  if (candleChartRef.value) {
-    candleChart = echarts.init(candleChartRef.value)
-    window.addEventListener('resize', handleResize)
-  }
+  // candleChartRef 可能因 v-if 不存在，等数据到来时由 watch 初始化
 })
 
 onBeforeUnmount(() => {
