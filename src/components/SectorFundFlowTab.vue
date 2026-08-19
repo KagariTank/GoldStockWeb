@@ -414,18 +414,23 @@ const sectorCandleData = computed(() => {
     const agg = candleSectors.value[sector.code]
     if (!agg) continue
 
+    const closeYi = agg.close / 1e8
+    const lowYi = agg.low / 1e8
+    const highYi = agg.high / 1e8
+
     result.push({
       code: sector.code,
       name: sector.name,
       // ECharts candlestick: [open, close, low, high]，单位：亿元
       // open 恒为 0（日内资金从 0 开始累计）
+      // 钳制：open=0 所以 low 不能高于 0，high 不能低于 0
       data: [
         0,
-        +(agg.close / 1e8).toFixed(2),
-        +(agg.low / 1e8).toFixed(2),
-        +(agg.high / 1e8).toFixed(2)
+        closeYi,
+        Math.min(lowYi, 0),
+        Math.max(highYi, 0)
       ],
-      change: +(agg.close / 1e8).toFixed(2)
+      change: closeYi
     })
   }
 
@@ -521,7 +526,7 @@ function buildCandleChartOption() {
                 fontSize: 11,
                 fontWeight: 'bold',
                 color: isUp ? '#ee5a52' : '#20bf6b',
-                formatter: `${close >= 0 ? '+' : ''}${close.toFixed(1)}亿`
+                formatter: `${close >= 0 ? '+' : ''}${close.toFixed(2)}亿`
               }
             }
           }),
