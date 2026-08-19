@@ -486,7 +486,7 @@ function checkCumulativeDiffAlert() {
   const diffChangeYi = diffChangeYuan / 1e8
 
   console.log('[量能告警] 柱子分析', {
-    time: lastPoint.time,
+    time: recent[recent.length - 1].time,
     latestDiffYi: latestDiffYi.toFixed(2),
     diffChangeYi: diffChangeYi.toFixed(2),
     trend: latestDiffYi < 0 ? '缩量' : '放量',
