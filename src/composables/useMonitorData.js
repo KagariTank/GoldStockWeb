@@ -208,49 +208,49 @@ const checkAllAlerts = (skipNotify = false) => {
   if (!skipNotify) checkSealAlerts()
 }
 
-// 判断股票的涨停/跌停幅度
-function getLimitPct(code) {
-  // ST股票：5%
-  if (code.includes('ST')) return 0.05
-  // 科创板 688开头：20%
-  if (code.startsWith('sh688') || code.startsWith('sh689')) return 0.20
-  if (code.startsWith('688') || code.startsWith('689')) return 0.20
-  // 创业板 300/301开头：20%
-  if (code.startsWith('sz300') || code.startsWith('sz301')) return 0.20
-  if (code.startsWith('300') || code.startsWith('301')) return 0.20
-  // 北交所 8开头/4开头：30%
-  if (code.startsWith('bj8') || code.startsWith('bj4')) return 0.30
-  if (code.startsWith('8') || code.startsWith('4')) return 0.30
-  // 默认主板：10%
-  return 0.10
+// 获取股票的涨跌停幅度和价格精度
+function getLimitInfo(code, name) {
+  // ST股票：5%，0.01精度
+  if (name && name.toUpperCase().includes('ST')) return { pct: 0.05, tick: 0.01 }
+  // 科创板 688/689开头：20%，0.001精度
+  if (code.startsWith('sh688') || code.startsWith('sh689')) return { pct: 0.20, tick: 0.001 }
+  // 创业板 300/301开头：20%，0.001精度
+  if (code.startsWith('sz300') || code.startsWith('sz301')) return { pct: 0.20, tick: 0.001 }
+  // 北交所：30%，0.001精度
+  if (code.startsWith('bj')) return { pct: 0.30, tick: 0.001 }
+  // 主板：10%，0.01精度
+  return { pct: 0.10, tick: 0.01 }
+}
+
+// 按精度四舍五入到实际涨跌停价
+function roundLimitPrice(price, tick) {
+  return Math.round(price / tick) * tick
 }
 
 // 判断是否涨停
 function isLimitUp(row) {
   const prevClose = row.prevClose || 0
   const currPrice = row.now || 0
-  const buy1Price = row.buy1Price || 0
-  const limitPct = getLimitPct(row.fullCode)
+  const { pct, tick } = getLimitInfo(row.fullCode, row.name)
   
   if (prevClose <= 0 || currPrice <= 0) return false
   
-  const limitPrice = prevClose * (1 + limitPct)
-  // 现价达到涨停价（允许0.5%误差）且买一价=现价（有封单）
-  return currPrice >= limitPrice * 0.995 && buy1Price > 0 && Math.abs(buy1Price - currPrice) < 0.01
+  const limitPrice = roundLimitPrice(prevClose * (1 + pct), tick)
+  // 现价 >= 涨停价（按精度取整后的实际涨停价）
+  return currPrice >= limitPrice
 }
 
 // 判断是否跌停
 function isLimitDown(row) {
   const prevClose = row.prevClose || 0
   const currPrice = row.now || 0
-  const sell1Price = row.sell1Price || 0
-  const limitPct = getLimitPct(row.fullCode)
+  const { pct, tick } = getLimitInfo(row.fullCode, row.name)
   
   if (prevClose <= 0 || currPrice <= 0) return false
   
-  const limitPrice = prevClose * (1 - limitPct)
-  // 现价达到跌停价（允许0.5%误差）且卖一价=现价（有封单）
-  return currPrice <= limitPrice * 1.005 && sell1Price > 0 && Math.abs(sell1Price - currPrice) < 0.01
+  const limitPrice = roundLimitPrice(prevClose * (1 - pct), tick)
+  // 现价 <= 跌停价（按精度取整后的实际跌停价）
+  return currPrice <= limitPrice
 }
 
 // 根据市值获取安全阈值
