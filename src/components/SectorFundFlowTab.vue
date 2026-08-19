@@ -417,18 +417,18 @@ const sectorCandleData = computed(() => {
     const closeYi = agg.close / 1e8
     const lowYi = agg.low / 1e8
     const highYi = agg.high / 1e8
+    const isUp = closeYi >= 0  // 阳线：净流入为正
 
     result.push({
       code: sector.code,
       name: sector.name,
-      // ECharts candlestick: [open, close, low, high]，单位：亿元
-      // open 恒为 0（日内资金从 0 开始累计）
-      // 钳制：open=0 所以 low 不能高于 0，high 不能低于 0
+      // ECharts candlestick: [open, close, low, high]
+      // open 恒为 0，需保证：low ≤ min(open, close), high ≥ max(open, close)
       data: [
         0,
         closeYi,
-        Math.min(lowYi, 0),
-        Math.max(highYi, 0)
+        isUp ? Math.min(lowYi, 0) : Math.min(lowYi, closeYi),
+        isUp ? Math.max(highYi, closeYi) : Math.max(highYi, 0)
       ],
       change: closeYi
     })
