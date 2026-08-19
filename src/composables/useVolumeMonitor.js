@@ -485,6 +485,9 @@ function checkCumulativeDiffAlert() {
   const latestDiffYi = latestDiff / 1e8
   const diffChangeYi = diffChangeYuan / 1e8
 
+  const latestData = recent[recent.length - 1]
+  const cumulativeRatio = latestData.yestVol > 0 ? latestData.todayVol / latestData.yestVol : 1
+
   console.log('[量能告警] 柱子分析', {
     time: recent[recent.length - 1].time,
     latestDiffYi: latestDiffYi.toFixed(2),
