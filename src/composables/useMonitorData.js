@@ -210,15 +210,23 @@ const checkAllAlerts = (skipNotify = false) => {
 
 // 获取股票的涨跌停幅度和价格精度
 function getLimitInfo(code, name) {
-  // ST股票：5%，0.01精度
-  if (name && name.toUpperCase().includes('ST')) return { pct: 0.05, tick: 0.01 }
+  // 港股：无涨跌停限制，跳过判断
+  if (code.startsWith('hk')) return { skip: true }
   // 科创板 688/689开头：20%，0.001精度
   if (code.startsWith('sh688') || code.startsWith('sh689')) return { pct: 0.20, tick: 0.001 }
+  // 科创板ETF 588开头：20%，0.001精度
+  if (code.startsWith('sh588')) return { pct: 0.20, tick: 0.001 }
   // 创业板 300/301开头：20%，0.001精度
   if (code.startsWith('sz300') || code.startsWith('sz301')) return { pct: 0.20, tick: 0.001 }
+  // 创业板ETF 159开头：20%，0.001精度
+  if (code.startsWith('sz159')) return { pct: 0.20, tick: 0.001 }
+  // 可转债：20%，0.001精度（沪市sh113/sh118/sh110，深市sz123/sz127/sz128）
+  if (/^(sh113|sh118|sh110|sz123|sz127|sz128)/.test(code)) return { pct: 0.20, tick: 0.001 }
   // 北交所：30%，0.001精度
   if (code.startsWith('bj')) return { pct: 0.30, tick: 0.001 }
-  // 主板：10%，0.01精度
+  // 主板ST股票：5%，0.01精度（仅主板适用，科创板/创业板ST仍为20%）
+  if (name && name.toUpperCase().includes('ST')) return { pct: 0.05, tick: 0.01 }
+  // 主板/普通ETF：10%，0.01精度
   return { pct: 0.10, tick: 0.01 }
 }
 
@@ -231,8 +239,10 @@ function roundLimitPrice(price, tick) {
 function isLimitUp(row) {
   const prevClose = row.prevClose || 0
   const currPrice = row.now || 0
-  const { pct, tick } = getLimitInfo(row.fullCode, row.name)
+  const info = getLimitInfo(row.fullCode, row.name)
+  if (info.skip) return false
   
+  const { pct, tick } = info
   if (prevClose <= 0 || currPrice <= 0) return false
   
   const limitPrice = roundLimitPrice(prevClose * (1 + pct), tick)
@@ -244,8 +254,10 @@ function isLimitUp(row) {
 function isLimitDown(row) {
   const prevClose = row.prevClose || 0
   const currPrice = row.now || 0
-  const { pct, tick } = getLimitInfo(row.fullCode, row.name)
+  const info = getLimitInfo(row.fullCode, row.name)
+  if (info.skip) return false
   
+  const { pct, tick } = info
   if (prevClose <= 0 || currPrice <= 0) return false
   
   const limitPrice = roundLimitPrice(prevClose * (1 - pct), tick)
