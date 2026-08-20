@@ -14,6 +14,50 @@ const lastUpdate = ref('')
 const candleSectors = ref({})
 let _currentDate = null // 用于跨日检测，自动重置
 
+// 持久化相关
+const STORAGE_KEY = 'sector_candle_data'
+
+function getTodayKey() {
+  const now = new Date()
+  return now.getFullYear() + '-' + (now.getMonth() + 1) + '-' + now.getDate()
+}
+
+function loadFromStorage(sectorType) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    // 检查日期和板块类型
+    const todayKey = getTodayKey()
+    if (data.date !== todayKey || data.sectorType !== sectorType) {
+      // 日期或板块类型不匹配，清除
+      localStorage.removeItem(STORAGE_KEY)
+      return null
+    }
+    return data.sectors || {}
+  } catch (e) {
+    console.warn('加载K线持久化数据失败:', e)
+    return null
+  }
+}
+
+function saveToStorage(sectors, sectorType) {
+  try {
+    const data = {
+      date: getTodayKey(),
+      sectorType,
+      sectors
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+  } catch (e) {
+    console.warn('保存K线持久化数据失败:', e)
+  }
+}
+
+function clearStorage() {
+  localStorage.removeItem(STORAGE_KEY)
+}
+
 // 自动刷新 - 使用统一定时器管理
 const _sectorTimer = createAutoRefreshTimer('sector', {
   onRefresh: () => {
@@ -221,12 +265,19 @@ async function fetchData() {
 
     // 更新板块K线聚合状态（增量更新 OHLC）
     // 跨日检测：日期变了就清空，开始新的一天
-    const today = new Date(now.getTime())
-    const todayKey = today.getFullYear() + '-' + (today.getMonth() + 1) + '-' + today.getDate()
+    const todayKey = getTodayKey()
     if (_currentDate && _currentDate !== todayKey) {
       candleSectors.value = {}
       _prevSnapshot = null
       _alertInitialized = false
+      clearStorage()
+    } else if (!_currentDate) {
+      // 首次加载：尝试从 localStorage 恢复当天数据
+      const stored = loadFromStorage(sectorType.value)
+      if (stored && Object.keys(stored).length > 0) {
+        candleSectors.value = stored
+        _currentDate = todayKey
+      }
     }
     _currentDate = todayKey
 
@@ -250,6 +301,9 @@ async function fetchData() {
         if (value < existing.low) existing.low = value
       }
     }
+
+    // 持久化保存
+    saveToStorage(candleSectors.value, sectorType.value)
   } catch (e) {
     console.error('板块资金流向获取失败:', e)
   } finally {
@@ -264,11 +318,12 @@ function toggleAutoRefresh() {
 
 // 切换板块类型
 function onSectorTypeChange() {
-  // 切换板块类型时重置告警基线和K线聚合
+  // 切换板块类型时重置告警基线，但保留K线持久化数据
   _prevSnapshot = null
   _alertInitialized = false
   _currentDate = null
   candleSectors.value = {}
+  // fetchData 会自动从 localStorage 恢复对应板块类型的数据
   fetchData()
 }
 
