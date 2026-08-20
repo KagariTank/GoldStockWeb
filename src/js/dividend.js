@@ -1,14 +1,6 @@
 // 股息监控模块
 
 // 股息相关工具函数
-export function getDividendColor(rate) {
-  if (rate >= 6) return '#67c23a';
-  if (rate >= 5.5) return '#e6a23c';
-  if (rate >= 5) return '#f56c6c';
-  if (rate >= 4.5) return '#409eff';
-  return '#909399';
-}
-
 export function getDividendClass(rate) {
   if (rate >= 6) return 'rate-green';
   if (rate >= 5.5) return 'rate-yellow';
@@ -25,17 +17,8 @@ export function getDividendEmoji(rate) {
   return '';
 }
 
-export function getThresholdCount(tableData, threshold) {
-  return tableData.filter(row => row.dividendRate !== undefined && row.dividendRate !== null && row.dividendRate >= threshold).length;
-}
-
 export function dividendAlertTypeKey(code, type) {
   return `dividend__${code}__${type}`;
-}
-
-export function hasDividendAlert(flags, code) {
-  if (!code) return false;
-  return Object.keys(flags).some(key => key.startsWith(`dividend__${code}`));
 }
 
 export function checkDividendAlerts(tableData, flags, fireNotify, selectedVoice) {
@@ -115,14 +98,3 @@ export function calcDividendFields(row) {
   }
 }
 
-export function onUpdateDividendPerShare(row, stockList, saveCallback) {
-  calcDividendFields(row);
-  // 同步到 dividendStockList
-  const stockItem = stockList.find(s => s.fullCode === row.fullCode);
-  if (stockItem) {
-    stockItem.dividendPerShare = row.dividendPerShare;
-  }
-  saveCallback();
-  localStorage.setItem('dividend_data_v1', JSON.stringify(row));
-  return row;
-}

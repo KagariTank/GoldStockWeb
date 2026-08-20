@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watch, onMounted, onUnmounted } from 'vue'
+import { computed, watch } from 'vue'
 import { cn } from '@/lib/utils'
 
 const props = defineProps({

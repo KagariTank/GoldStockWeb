@@ -167,19 +167,6 @@ export function calculatePosition(position, now) {
   }
 }
 
-// 表格行样式类名
-export function tableRowClassName({ row }) {
-  const now = parseFloat(row.now);
-  const sl = parseFloat(row.stopLoss);
-  const tp = parseFloat(row.takeProfit);
-  if (!isNaN(sl) && sl > 0 && now <= sl) return 'stoploss-row';
-  if (!isNaN(tp) && tp > 0 && now >= tp) return 'takeprofit-row';
-  if (isNaN(now) || !row.f618) return '';
-  if (now <= parseFloat(row.f786)) return 'danger-row';
-  if (now <= parseFloat(row.f618)) return 'warning-row';
-  return '';
-}
-
 // 计算行数据
 export function calculateRow(row, saveCallback) {
   const diff = row.high - row.low;

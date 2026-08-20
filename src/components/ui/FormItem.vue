@@ -1,5 +1,4 @@
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
 import { cn } from '@/lib/utils'
 
 const props = defineProps({

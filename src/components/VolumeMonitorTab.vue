@@ -97,14 +97,6 @@
         </span>
       </div>
 
-      <!-- ECharts 成交量对比图 -->
-      <div v-if="minuteData.length > 0" class="border rounded-lg mb-4 p-2">
-        <div class="px-2 mb-2">
-          <span class="text-sm font-medium">成交量对比 — 今日 vs 昨日</span>
-        </div>
-        <div ref="chartRef" class="w-full" style="height: 350px"></div>
-      </div>
-
       <!-- ECharts 成交额变动图 + 上证指数分时 -->
       <div v-if="minuteData.length > 0" class="border rounded-lg mb-4 p-2">
         <div class="px-2 mb-2">
@@ -150,9 +142,7 @@
               </TableCell>
               <TableCell>
                 <span v-if="!row.hasData" class="text-muted-foreground text-sm">-</span>
-                <span v-else-if="row.ratio >= 1.3" class="text-red-500 text-sm">放量</span>
-                <span v-else-if="row.ratio < 0.7" class="text-green-500 text-sm">缩量</span>
-                <span v-else class="text-muted-foreground text-sm">平稳</span>
+                <span v-else :class="row.trend.cls" class="text-sm">{{ row.trend.label }}</span>
               </TableCell>
             </TableRow>
           </TableBody>
@@ -203,132 +193,7 @@ const reversedMinuteData = computed(() =>
   minuteData.value.filter(d => d.hasData && !d.isFuture).reverse()
 )
 
-// ===== ECharts =====
-const chartRef = ref(null)
-let chart = null
-
-const chartOption = computed(() => {
-  const data = minuteData.value
-  if (data.length === 0) return null
-
-  const times = data.map(d => d.time)
-  
-  // 使用 API 返回的累计值（turnover 本身就是累计的，不需要再次累加）
-  const todayValues = data.map(d => {
-    if (d.todayVol === null || d.todayVol === undefined) return null
-    return +(d.todayVol / 1e8).toFixed(2)
-  })
-  
-  const yestValues = data.map(d => {
-    if (d.yestVol === null || d.yestVol === undefined) return null
-    return +(d.yestVol / 1e8).toFixed(2)
-  })
-
-  return {
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(50, 50, 50, 0.9)',
-      borderWidth: 0,
-      textStyle: { color: '#fff', fontSize: 12 },
-      padding: [8, 12],
-      formatter: (params) => {
-        let html = `<div style="font-weight:600;margin-bottom:4px">${params[0].axisValue}</div>`
-        for (const p of params) {
-          const val = p.value
-          if (val === null || val === undefined || val === '-' || isNaN(val)) {
-            html += `<div>${p.marker} ${p.seriesName}: <span style="color:#999">无数据</span></div>`
-          } else {
-            const color = p.color
-            html += `<div>${p.marker} ${p.seriesName}: <span style="font-weight:700;color:${color}">${val}亿</span></div>`
-          }
-        }
-        return html
-      }
-    },
-    legend: {
-      data: ['今日累计', '昨日累计'],
-      top: 5,
-      textStyle: { fontSize: 13, color: '#666' },
-      itemWidth: 20,
-      itemHeight: 12
-    },
-    grid: { left: 60, right: 25, top: 40, bottom: 30 },
-    xAxis: {
-      type: 'category',
-      data: times,
-      axisLabel: {
-        fontSize: 11,
-        color: '#888',
-        interval: 0,
-        rotate: 0,
-        formatter: (value, index) => {
-          const timeStr = data[index]?.time || value
-          const keyTimes = ['09:30', '10:00', '10:30', '11:00', '11:30', '13:30', '14:00', '14:30', '15:00']
-          if (keyTimes.includes(timeStr)) {
-            return timeStr
-          }
-          return ''
-        }
-      },
-      axisLine: { lineStyle: { color: '#ccc' } },
-      axisTick: { show: false }
-    },
-    yAxis: {
-      type: 'value',
-      name: '亿元',
-      nameTextStyle: { fontSize: 13, color: '#444' },
-      axisLabel: { fontSize: 13, color: '#444' },
-      splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }
-    },
-    series: [
-      {
-        name: '今日累计',
-        type: 'line',
-        data: todayValues,
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 4,
-        showSymbol: false,
-        connectNulls: true,
-        lineStyle: { width: 2.5, color: '#ff6b6b' },
-        itemStyle: { color: '#ff6b6b' },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(255, 107, 107, 0.25)' },
-            { offset: 1, color: 'rgba(255, 107, 107, 0.02)' }
-          ])
-        },
-        emphasis: { focus: 'series' },
-        animationDuration: 300,
-        animationEasing: 'linear'
-      },
-      {
-        name: '昨日累计',
-        type: 'line',
-        data: yestValues,
-        smooth: true,
-        symbol: 'none',
-        showSymbol: false,
-        connectNulls: true,
-        lineStyle: { width: 1.5, color: '#888', type: 'dashed' },
-        itemStyle: { color: '#888' },
-        emphasis: { focus: 'series' },
-        animation: false
-      }
-    ],
-    animationDuration: 300,
-    animationEasing: 'linear',
-    animationDelay: 0
-  }
-})
-
-function updateChart() {
-  if (!chart) return
-  const opt = chartOption.value
-  if (opt) chart.setOption(opt, { notMerge: true })
-}
-
-// ===== 成交额变动图 =====
+// ===== ECharts 成交额变动图 =====
 const diffChartRef = ref(null)
 let diffChart = null
 
@@ -510,16 +375,6 @@ function updateDiffChart() {
   if (opt) diffChart.setOption(opt, { notMerge: true })
 }
 
-watch(chartOption, () => {
-  nextTick(() => {
-    if (!chart && chartRef.value) {
-      chart = echarts.init(chartRef.value)
-      window.addEventListener('resize', handleResize)
-    }
-    updateChart()
-  })
-}, { deep: true })
-
 watch(diffChartOption, () => {
   nextTick(() => {
     if (!diffChart && diffChartRef.value) {
@@ -530,10 +385,6 @@ watch(diffChartOption, () => {
 }, { deep: true })
 
 onMounted(() => {
-  if (chartRef.value) {
-    chart = echarts.init(chartRef.value)
-    window.addEventListener('resize', handleResize)
-  }
   if (diffChartRef.value) {
     diffChart = echarts.init(diffChartRef.value)
   }
@@ -541,10 +392,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
-  if (chart) {
-    chart.dispose()
-    chart = null
-  }
   if (diffChart) {
     diffChart.dispose()
     diffChart = null
@@ -552,7 +399,6 @@ onBeforeUnmount(() => {
 })
 
 function handleResize() {
-  chart?.resize()
   diffChart?.resize()
 }
 

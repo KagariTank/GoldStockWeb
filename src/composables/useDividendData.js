@@ -1,4 +1,4 @@
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref } from 'vue'
 import { formatCode } from '@/js/utils.js'
 import { calcDividendFields, checkDividendAlerts } from '@/js/dividend.js'
 import { initAudio, fireNotify } from '@/js/notify.js'

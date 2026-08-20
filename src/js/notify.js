@@ -147,23 +147,6 @@ export function fireNotify(title, body, level, isFileProtocol, selectedVoice) {
   speakAlert(title, body, level, selectedVoice);
 }
 
-// Mac SpeechSynthesis修复：强制唤醒引擎
-function wakeUpSpeechSynthesis() {
-  if (!('speechSynthesis' in window)) return;
-
-  // Mac修复：播放一个静音的utterance来"唤醒"引擎
-  try {
-    const dummy = new SpeechSynthesisUtterance('');
-    dummy.volume = 0;
-    dummy.rate = 10; // 极快播放
-    window.speechSynthesis.speak(dummy);
-  } catch (e) { }
-
-  // 强制刷新引擎状态
-  window.speechSynthesis.pause();
-  window.speechSynthesis.resume();
-}
-
 // Mac SpeechSynthesis修复：队列播放 + 状态恢复
 let _speechBusySince = 0; // 记录 _speechBusy 变为 true 的时间
 
@@ -382,16 +365,6 @@ export function testNotify(isFileProtocol, selectedVoice) {
     toastWarning('当前浏览器不支持系统通知，将使用站内消息 + 语音提醒。');
     speakAlert('指标提醒测试', '语音播报通道正常。', 2, selectedVoice);
   }
-}
-
-export async function ensureNotifyPerm() {
-  if (!('Notification' in window)) return false;
-  if (Notification.permission === 'granted') return true;
-  if (Notification.permission === 'denied') return false;
-  try {
-    const r = await Notification.requestPermission();
-    return r === 'granted';
-  } catch (e) { return false; }
 }
 
 // 清除所有通知和语音

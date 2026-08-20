@@ -467,11 +467,6 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.fib-val {
-  color: #409eff;
-  font-weight: 500;
-}
-
 /* Dividend rate colors */
 .rate-green {
   color: #67c23a;
@@ -501,71 +496,5 @@ onMounted(() => {
 
 .animate-pulse {
   animation: flash 1s ease-in-out infinite;
-}
-
-/* Table row styles */
-.bg-red-50 {
-  background-color: #fef2f2;
-}
-
-.bg-green-50 {
-  background-color: #f0fdf4;
-}
-
-.bg-orange-50 {
-  background-color: #fff7ed;
-}
-
-/* Price now styles */
-.price-now {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-/* Market tag styles */
-.market-tag {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 600;
-  margin-right: 4px;
-}
-
-.tag-sh {
-  background: #ecf5ff;
-  color: #409eff;
-}
-
-.tag-sz {
-  background: #fef9ec;
-  color: #e6a23c;
-}
-
-.tag-hk {
-  background: #f4e8f8;
-  color: #9c27b0;
-}
-
-.tag-bj {
-  background: #f0f0f0;
-  color: #606266;
-}
-
-/* Dividend rate dots */
-.dot-green {
-  background-color: #67c23a;
-}
-
-.dot-yellow {
-  background-color: #e6a23c;
-}
-
-.dot-orange {
-  background-color: #f56c6c;
-}
-
-.dot-red {
-  background-color: #409eff;
 }
 </style>

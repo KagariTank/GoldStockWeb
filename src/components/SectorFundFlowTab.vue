@@ -72,14 +72,6 @@
 
 
     <div class="flex-1 overflow-auto">
-        <!-- ECharts 柱状图：流入前5 + 流出前5 -->
-      <div v-if="tableData.length > 0" class="border rounded-lg mb-4 p-2">
-        <div class="px-2 mb-2">
-          <span class="text-sm font-medium">主力净流入 — 流入前5 & 流出前5</span>
-        </div>
-        <div ref="chartRef" class="w-full" style="height: 320px"></div>
-      </div>
-
       <!-- ECharts 蜡烛图：流入前5 + 流出前5 板块日内K线 -->
       <div class="border rounded-lg mb-4 p-2">
         <div class="px-2 mb-2 flex items-center gap-2">
@@ -275,121 +267,6 @@ const outflowCount = computed(() => {
   return tableData.value.filter(row => row.mainNetInflow < 0).length
 })
 
-// ===== ECharts 柱状图 =====
-const chartRef = ref(null)
-let chart = null
-
-const chartData = computed(() => {
-  if (tableData.value.length === 0) return { names: [], values: [], colors: [] }
-  const sorted = [...tableData.value].sort((a, b) => b.mainNetInflow - a.mainNetInflow)
-  const top5In = sorted.slice(0, 5)
-  const top5Out = sorted.slice(-5)
-  const combined = [...top5In, ...top5Out]
-  return {
-    names: combined.map(r => r.name),
-    values: combined.map(r => +(r.mainNetInflow / 1e8).toFixed(2)),
-    isOutflow: combined.map(r => r.mainNetInflow < 0)
-  }
-})
-
-function buildChartOption() {
-  const { names, values, isOutflow } = chartData.value
-  if (names.length === 0) return {}
-
-  // 渐变色
-  const inflowColor = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-    { offset: 0, color: '#ff6b6b' },
-    { offset: 1, color: '#ee5a52' }
-  ])
-  const outflowColor = new echarts.graphic.LinearGradient(0, 1, 0, 0, [
-    { offset: 0, color: '#26de81' },
-    { offset: 1, color: '#20bf6b' }
-  ])
-
-  return {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      backgroundColor: 'rgba(50, 50, 50, 0.9)',
-      borderWidth: 0,
-      textStyle: { color: '#fff', fontSize: 12 },
-      padding: [8, 12],
-      formatter: (params) => {
-        const p = params[0]
-        const sign = p.value >= 0 ? '+' : ''
-        const color = p.value >= 0 ? '#ff6b6b' : '#26de81'
-        return `<div style="font-weight:600;margin-bottom:4px">${p.name}</div>
-                <div>主力净流入: <span style="font-weight:700;color:${color}">${sign}${p.value}亿</span></div>`
-      }
-    },
-    grid: { left: 60, right: 25, top: 25, bottom: 50 },
-    xAxis: {
-      type: 'category',
-      data: names,
-      axisLabel: {
-        fontSize: 13,
-        fontWeight: 600,
-        rotate: 30,
-        interval: 0,
-        color: '#444',
-        formatter: (val) => val.length > 5 ? val.slice(0, 4) + '..' : val
-      },
-      axisLine: { lineStyle: { color: '#ccc' } },
-      axisTick: { show: false }
-    },
-    yAxis: {
-      type: 'value',
-      name: '亿元',
-      nameTextStyle: { fontSize: 13, color: '#444' },
-      axisLabel: { fontSize: 13, color: '#444' },
-      splitLine: { lineStyle: { type: 'dashed', color: '#eee' } }
-    },
-    series: [{
-      type: 'bar',
-      data: values.map((v, i) => ({
-        value: v,
-        itemStyle: {
-          color: isOutflow[i] ? outflowColor : inflowColor,
-          borderRadius: isOutflow[i] ? [4, 4, 0, 0] : [0, 0, 4, 4]
-        }
-      })),
-      barWidth: '55%',
-      label: {
-        show: true,
-        position: 'top',
-        fontSize: 13,
-        fontWeight: 'bold',
-        formatter: (p) => (p.value >= 0 ? `+${p.value}` : `${p.value}`),
-        color: (p) => p.value >= 0 ? '#ee5a52' : '#20bf6b'
-      },
-      markLine: {
-        silent: true,
-        symbol: 'none',
-        lineStyle: { color: '#ccc', type: 'solid', width: 1 },
-        data: [{ yAxis: 0 }],
-        label: { show: false }
-      },
-      animationDuration: 800,
-      animationEasing: 'cubicOut'
-    }]
-  }
-}
-
-function updateChart() {
-  if (!chart) return
-  chart.setOption(buildChartOption(), { notMerge: true })
-}
-
-watch(chartData, () => {
-  nextTick(() => {
-    if (!chart && chartRef.value) {
-      chart = echarts.init(chartRef.value)
-      window.addEventListener('resize', handleResize)
-    }
-    updateChart()
-  })
-}, { deep: true })
-
 // ===== ECharts 蜡烛图（板块日内K线） =====
 const candleChartRef = ref(null)
 let candleChart = null
@@ -557,19 +434,11 @@ watch(sectorCandleData, () => {
 }, { deep: true })
 
 onMounted(() => {
-  if (chartRef.value) {
-    chart = echarts.init(chartRef.value)
-    window.addEventListener('resize', handleResize)
-  }
   // candleChartRef 可能因 v-if 不存在，等数据到来时由 watch 初始化
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
-  if (chart) {
-    chart.dispose()
-    chart = null
-  }
   if (candleChart) {
     candleChart.dispose()
     candleChart = null
@@ -577,7 +446,6 @@ onBeforeUnmount(() => {
 })
 
 function handleResize() {
-  chart?.resize()
   candleChart?.resize()
 }
 

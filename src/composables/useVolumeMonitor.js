@@ -148,6 +148,66 @@ function getLastCompleteIndex(data) {
 
 const WINDOW = 5  // 最近5分钟窗口
 
+// 趋势判断参数（用于表格每行趋势列）
+const TREND_WINDOW = 3       // 动量回看窗口（分钟）
+const RATIO_EXPAND = 1.1     // 放量阈值
+const RATIO_SHRINK = 0.9     // 缩量阈值
+// 动量阈值：3分钟内累计差额(turnoverChange)变化超过 20亿(2e10元)视为有方向
+// 用差额变化而非比率变化，因为累计比率变化极慢，无法反映短期趋势
+const MOMENTUM_CHANGE_THRESH = 2e10
+
+// 计算单行趋势标签
+// ratio: 当前累计比率(今日/昨日)
+// change: 当前累计差额(今日-昨日，单位元，负值=缩量)
+// prevChange: TREND_WINDOW 分钟前的累计差额
+function computeTrendLabel(ratio, change, prevChange) {
+  if (ratio == null) return { label: '-', cls: 'text-muted-foreground' }
+
+  // 无前值时仅根据绝对水平判断
+  if (prevChange == null || change == null) {
+    if (ratio >= 1.3) return { label: '放量', cls: 'text-red-500' }
+    if (ratio < 0.7) return { label: '缩量', cls: 'text-green-500' }
+    return { label: '平稳', cls: 'text-muted-foreground' }
+  }
+
+  // 差额变化：>0 表示差额收窄(量能改善)，<0 表示差额扩大(量能恶化)
+  const changeDelta = change - prevChange
+  const isExpanding = ratio > RATIO_EXPAND
+  const isShrinking = ratio < RATIO_SHRINK
+  const momentumUp = changeDelta > MOMENTUM_CHANGE_THRESH    // 量能改善
+  const momentumDown = changeDelta < -MOMENTUM_CHANGE_THRESH // 量能恶化
+
+  if (isExpanding) {
+    if (momentumUp) return { label: '放量加速', cls: 'text-red-600 font-semibold' }
+    if (momentumDown) return { label: '放量减弱', cls: 'text-orange-500' }
+    return { label: '放量', cls: 'text-red-500' }
+  }
+  if (isShrinking) {
+    if (momentumDown) return { label: '缩量加剧', cls: 'text-green-600 font-semibold' }
+    if (momentumUp) return { label: '缩量收窄', cls: 'text-teal-500' }
+    return { label: '缩量', cls: 'text-green-500' }
+  }
+  // 正常区间 0.9~1.1
+  if (momentumUp) return { label: '温和放量', cls: 'text-orange-400' }
+  if (momentumDown) return { label: '温和缩量', cls: 'text-teal-400' }
+  return { label: '平稳', cls: 'text-muted-foreground' }
+}
+
+// 为分钟数据数组中每个有效点计算趋势标签
+function enrichTrends(data) {
+  const validIdxs = []
+  for (let i = 0; i < data.length; i++) {
+    if (data[i].hasData && data[i].ratio != null) validIdxs.push(i)
+  }
+  for (let vi = 0; vi < validIdxs.length; vi++) {
+    const i = validIdxs[vi]
+    const prevVi = vi - TREND_WINDOW
+    const prevChange = prevVi >= 0 ? data[validIdxs[prevVi]].turnoverChange : null
+    data[i].trend = computeTrendLabel(data[i].ratio, data[i].turnoverChange, prevChange)
+  }
+  return data
+}
+
 // 生成A股全天交易时间轴（9:30-11:30, 13:01-15:00，跳过13:00）
 function generateFullDayTimestamps(baseDate) {
   const timestamps = []
@@ -706,7 +766,7 @@ async function fetchData() {
     points.value = raw
 
     // 计算分钟增量
-    minuteData.value = computeMinuteData(raw)
+    minuteData.value = enrichTrends(computeMinuteData(raw))
 
     // 拉取上证指数分时数据并匹配到时间轴
     const idxRaw = await fetchIndexData()

@@ -20,12 +20,6 @@ const inputClass = computed(() => {
   )
 })
 
-const formatValue = (val) => {
-  if (props.precision > 0) {
-    return Number(val).toFixed(props.precision)
-  }
-  return val
-}
 </script>
 
 <template>
