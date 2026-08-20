@@ -170,18 +170,25 @@ function checkAlerts() {
     const prev = _prevSnapshot[row.code]
     const inflow = row.mainNetInflow
     const prevInflow = prev ? prev.inflow : 0
+    const delta = inflow - prevInflow  // 本次变化量
+    const deltaStr = delta >= 0 ? `+${formatAmount(delta)}` : formatAmount(delta)
+    const trendDesc = delta > 1e8 ? '加速流入'
+      : delta < -1e8 ? '加速流出'
+      : delta > 0 ? '流入减弱'
+      : delta < 0 ? '流出减弱'
+      : '平稳'
 
     // 1. 巨量流入
     if (inflow > THRESHOLDS.massiveInflow) {
       if (_canAlert(`${row.code}_massive_in`)) {
-        _notify('📈 巨量资金流入', `${row.name} 主力净流入 ${formatAmount(inflow)}，资金大幅涌入`, 2)
+        _notify('📈 巨量资金流入', `${row.name} 净流入 ${formatAmount(inflow)}，${deltaStr}（${trendDesc}）`, 2)
       }
     }
 
     // 2. 巨量流出
     if (inflow < THRESHOLDS.massiveOutflow) {
       if (_canAlert(`${row.code}_massive_out`)) {
-        _notify('📉 巨量资金流出', `${row.name} 主力净流出 ${formatAmount(inflow)}，资金大幅撤离`, 3)
+        _notify('📉 巨量资金流出', `${row.name} 净流出 ${formatAmount(inflow)}，${deltaStr}（${trendDesc}）`, 3)
       }
     }
 
@@ -189,11 +196,11 @@ function checkAlerts() {
     if (prev) {
       if (prevInflow > THRESHOLDS.reversalPrev && inflow < THRESHOLDS.reversalCurr) {
         if (_canAlert(`${row.code}_reversal_down`)) {
-          _notify('⚠️ 资金流向反转', `${row.name} 由流入 ${formatAmount(prevInflow)} 转为流出 ${formatAmount(inflow)}`, 2)
+          _notify('⚠️ 资金流向反转', `${row.name} 由流入 ${formatAmount(prevInflow)} 转为流出 ${formatAmount(inflow)}，${deltaStr}`, 2)
         }
       } else if (prevInflow < THRESHOLDS.reversalCurr && inflow > THRESHOLDS.reversalPrev) {
         if (_canAlert(`${row.code}_reversal_up`)) {
-          _notify('🔄 资金流向反转', `${row.name} 由流出 ${formatAmount(prevInflow)} 转为流入 ${formatAmount(inflow)}`, 2)
+          _notify('🔄 资金流向反转', `${row.name} 由流出 ${formatAmount(prevInflow)} 转为流入 ${formatAmount(inflow)}，${deltaStr}`, 2)
         }
       }
     }
@@ -201,14 +208,14 @@ function checkAlerts() {
     // 4. 新晋前三（流入）
     if (top3InCodes.has(row.code) && !prevTop3InCodes.has(row.code)) {
       if (_canAlert(`${row.code}_top3_in`)) {
-        _notify('🔥 流入前三', `${row.name} 新晋流入前三，主力净流入 ${formatAmount(inflow)}`, 1)
+        _notify('🔥 流入前三', `${row.name} 新晋流入前三，净流入 ${formatAmount(inflow)}，${deltaStr}（${trendDesc}）`, 1)
       }
     }
 
     // 5. 新晋前三（流出）
     if (top3OutCodes.has(row.code) && !prevTop3OutCodes.has(row.code)) {
       if (_canAlert(`${row.code}_top3_out`)) {
-        _notify('❄️ 流出前三', `${row.name} 新晋流出前三，主力净流出 ${formatAmount(inflow)}`, 1)
+        _notify('❄️ 流出前三', `${row.name} 新晋流出前三，净流出 ${formatAmount(inflow)}，${deltaStr}（${trendDesc}）`, 1)
       }
     }
   }
