@@ -11,6 +11,7 @@ import MonitorTab from '@/components/MonitorTab.vue'
 import DividendTab from '@/components/DividendTab.vue'
 import SectorFundFlowTab from '@/components/SectorFundFlowTab.vue'
 import VolumeMonitorTab from '@/components/VolumeMonitorTab.vue'
+import DashboardTab from '@/components/DashboardTab.vue'
 import TimerControlPanel from '@/components/TimerControlPanel.vue'
 
 import { ensureFields, calculateRow } from '@/js/utils.js'
@@ -20,7 +21,7 @@ import { useDividendData } from '@/composables/useDividendData.js'
 import { useTheme } from '@/composables/useTheme.js'
 
 // State
-const activeTab = ref('monitor')
+const activeTab = ref('dashboard')
 
 // Export/Import
 const exportVisible = ref(false)
@@ -42,6 +43,7 @@ try {
 
 // Tab options
 const tabOptions = [
+  { label: '综合概览', value: 'dashboard' },
   { label: '指标监控', value: 'monitor' },
   { label: '红利股息监控', value: 'dividend' },
   { label: '板块资金流向', value: 'fundflow' },
@@ -379,6 +381,9 @@ onMounted(() => {
       <!-- Tabs -->
       <Tabs :tabs="tabOptions" v-model="activeTab" class="flex-1">
         <template #default="{ activeTab }">
+          <!-- Dashboard Tab -->
+          <DashboardTab v-if="activeTab === 'dashboard'" />
+
           <!-- Monitor Tab -->
           <MonitorTab v-if="activeTab === 'monitor'" />
 

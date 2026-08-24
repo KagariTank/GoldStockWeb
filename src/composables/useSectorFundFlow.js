@@ -11,11 +11,21 @@ const lastUpdate = ref('')
 // 板块日内K线聚合状态（用于蜡烛图）
 // 每个板块只存 OHLC 四个值，不需要存历史快照
 // 结构: { code: { code, name, open, close, high, low } }
-const candleSectors = ref({})
-let _currentDate = null // 用于跨日检测，自动重置
+// 按板块类型分别存储（industry / concept），互不覆盖
+const candleSectors = ref({}) // 当前选中类型（兼容旧用法）
+const candleSectorsByType = {
+  industry: ref({}),
+  concept: ref({})
+}
+const _currentDateByType = { industry: null, concept: null } // 跨日检测，按类型
+const _prevSnapshotByType = { industry: null, concept: null } // 告警基线，按类型
 
-// 持久化相关
+// 持久化相关（按类型分别存储）
 const STORAGE_KEY = 'sector_candle_data'
+const STORAGE_KEYS = {
+  industry: 'sector_candle_data_industry',
+  concept: 'sector_candle_data_concept'
+}
 
 function getTodayKey() {
   const now = new Date()
@@ -24,14 +34,14 @@ function getTodayKey() {
 
 function loadFromStorage(sectorType) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEYS[sectorType] || STORAGE_KEY)
     if (!raw) return null
     const data = JSON.parse(raw)
-    // 检查日期和板块类型
+    // 检查日期
     const todayKey = getTodayKey()
-    if (data.date !== todayKey || data.sectorType !== sectorType) {
-      // 日期或板块类型不匹配，清除
-      localStorage.removeItem(STORAGE_KEY)
+    if (data.date !== todayKey) {
+      // 日期不匹配，清除
+      localStorage.removeItem(STORAGE_KEYS[sectorType] || STORAGE_KEY)
       return null
     }
     return data.sectors || {}
@@ -48,20 +58,26 @@ function saveToStorage(sectors, sectorType) {
       sectorType,
       sectors
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    localStorage.setItem(STORAGE_KEYS[sectorType] || STORAGE_KEY, JSON.stringify(data))
   } catch (e) {
     console.warn('保存K线持久化数据失败:', e)
   }
 }
 
 function clearStorage() {
+  localStorage.removeItem(STORAGE_KEYS.industry)
+  localStorage.removeItem(STORAGE_KEYS.concept)
   localStorage.removeItem(STORAGE_KEY)
 }
 
 // 自动刷新 - 使用统一定时器管理
+// 同时刷新行业和概念两种类型（串行避免 loading 互斥）
 const _sectorTimer = createAutoRefreshTimer('sector', {
-  onRefresh: () => {
-    if (!loading.value) fetchData()
+  onRefresh: async () => {
+    if (!loading.value) {
+      await fetchData('industry')
+      await fetchData('concept')
+    }
   },
   refreshInterval: 30,
   initialCountdown: 30,
@@ -79,8 +95,7 @@ const alertEnabled = ref(true)
 const isFileProtocol = ref(false)
 try { isFileProtocol.value = /^file:$/i.test(window.location.protocol) } catch (e) {}
 const selectedVoice = ref('')
-let _alertInitialized = false
-let _prevSnapshot = null // { code: { name, inflow }, ... }
+const _alertInitializedByType = { industry: false, concept: false } // 告警基线是否已建立，按类型
 const _alertCooldown = {} // { `${code}_${type}`: timestamp }
 const COOLDOWN_MS = 5 * 60 * 1000 // 5 分钟冷却
 
@@ -146,8 +161,9 @@ function _notify(title, body, level) {
   fireNotify(title, body, level, isFileProtocol.value, selectedVoice)
 }
 
-function checkAlerts() {
-  if (!alertEnabled.value || !_prevSnapshot) return
+function checkAlerts(type) {
+  const snapshot = _prevSnapshotByType[type]
+  if (!alertEnabled.value || !snapshot) return
 
   const curr = {}
   for (const row of tableData.value) {
@@ -160,14 +176,14 @@ function checkAlerts() {
   const top3OutCodes = new Set(sorted.slice(-3).map(r => r.code))
 
   // 上次 top3
-  const prevSorted = Object.entries(_prevSnapshot)
+  const prevSorted = Object.entries(snapshot)
     .map(([code, v]) => ({ code, ...v }))
     .sort((a, b) => b.inflow - a.inflow)
   const prevTop3InCodes = new Set(prevSorted.slice(0, 3).map(r => r.code))
   const prevTop3OutCodes = new Set(prevSorted.slice(-3).map(r => r.code))
 
   for (const row of tableData.value) {
-    const prev = _prevSnapshot[row.code]
+    const prev = snapshot[row.code]
     const inflow = row.mainNetInflow
     const prevInflow = prev ? prev.inflow : 0
     const delta = inflow - prevInflow  // 本次变化量
@@ -221,15 +237,18 @@ function checkAlerts() {
   }
 
   // 更新快照
-  _prevSnapshot = curr
+  _prevSnapshotByType[type] = curr
 }
 
 // 拉取数据
-async function fetchData() {
+async function fetchData(targetType) {
   if (loading.value) return
+  // 指定类型时拉取该类型数据；未指定时用当前选中类型
+  const type = targetType || sectorType.value
+  const typeCandle = candleSectorsByType[type]
   loading.value = true
   try {
-    const code = sectorCodeMap[sectorType.value] || sectorCodeMap.industry
+    const code = sectorCodeMap[type] || sectorCodeMap.industry
     // dev 环境走 vite 代理避免 CORS，生产环境走 cors 代理
     const isDev = import.meta.env.DEV
     // 加时间戳防止浏览器缓存 GET 请求
@@ -243,59 +262,73 @@ async function fetchData() {
     const res = await fetch(url)
     const json = await res.json()
     const diff = json?.data?.diff || []
-    // API 已按 f62 降序返回，直接映射
-    tableData.value = diff.map(item => ({
-      code: item.f12,
-      name: item.f14,
-      changePercent: item.f3,          // 基点
-      mainNetInflow: item.f62,          // 元
-      mainNetInflowPercent: item.f184,  // 基点
-      superLargeNetInflow: item.f66,    // 元
-      largeNetInflow: item.f78,         // 元
-      topStockName: item.f128,
-      topStockCode: item.f140
-    }))
-    const now = new Date()
-    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
-    lastUpdate.value = timeStr
+    // 仅当前选中类型才更新 tableData（汇总信息），避免 Dashboard 预拉取其他类型时污染
+    if (type === sectorType.value) {
+      // API 已按 f62 降序返回，直接映射
+      tableData.value = diff.map(item => ({
+        code: item.f12,
+        name: item.f14,
+        changePercent: item.f3,          // 基点
+        mainNetInflow: item.f62,          // 元
+        mainNetInflowPercent: item.f184,  // 基点
+        superLargeNetInflow: item.f66,    // 元
+        largeNetInflow: item.f78,         // 元
+        topStockName: item.f128,
+        topStockCode: item.f140
+      }))
+      const now = new Date()
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
+      lastUpdate.value = timeStr
 
-    // 告警检测（首次加载跳过，只比较前后两次数据）
-    if (_alertInitialized) {
-      checkAlerts()
-    } else {
-      _prevSnapshot = {}
-      for (const row of tableData.value) {
-        _prevSnapshot[row.code] = { name: row.name, inflow: row.mainNetInflow }
+      // 告警检测（首次加载跳过，后续比较前后两次数据）
+      if (_alertInitializedByType[type]) {
+        checkAlerts(type)
+      } else {
+        _prevSnapshotByType[type] = {}
+        for (const row of tableData.value) {
+          _prevSnapshotByType[type][row.code] = { name: row.name, inflow: row.mainNetInflow }
+        }
+        _alertInitializedByType[type] = true
       }
-      _alertInitialized = true
     }
 
     // 更新板块K线聚合状态（增量更新 OHLC）
     // 跨日检测：日期变了就清空，开始新的一天
     const todayKey = getTodayKey()
-    if (_currentDate && _currentDate !== todayKey) {
-      candleSectors.value = {}
-      _prevSnapshot = null
-      _alertInitialized = false
+    const prevDate = _currentDateByType[type]
+    if (prevDate && prevDate !== todayKey) {
+      typeCandle.value = {}
+      _prevSnapshotByType[type] = null
+      _alertInitializedByType[type] = false
       clearStorage()
-    } else if (!_currentDate) {
+    } else if (!prevDate) {
       // 首次加载：尝试从 localStorage 恢复当天数据
-      const stored = loadFromStorage(sectorType.value)
+      const stored = loadFromStorage(type)
       if (stored && Object.keys(stored).length > 0) {
-        candleSectors.value = stored
-        _currentDate = todayKey
+        typeCandle.value = stored
+        _currentDateByType[type] = todayKey
       }
     }
-    _currentDate = todayKey
+    _currentDateByType[type] = todayKey
+    // 若该类型是当前选中类型，同步当前视图
+    if (type === sectorType.value) {
+      candleSectors.value = typeCandle.value
+    }
 
     // 更新每个板块的日内K线数据（open 恒为 0，只存 close/high/low）
-    for (const row of tableData.value) {
+    // 注意：非当前类型时 diff 未写入 tableData，直接用 diff 遍历
+    const rows = type === sectorType.value ? tableData.value : diff.map(item => ({
+      code: item.f12,
+      name: item.f14,
+      mainNetInflow: item.f62
+    }))
+    for (const row of rows) {
       const code = row.code
       const value = parseFloat(row.mainNetInflow) || 0
-      const existing = candleSectors.value[code]
+      const existing = typeCandle.value[code]
 
       if (!existing) {
-        candleSectors.value[code] = {
+        typeCandle.value[code] = {
           code,
           name: row.name,
           close: value,
@@ -309,13 +342,22 @@ async function fetchData() {
       }
     }
 
+    // 若该类型是当前选中类型，同步当前视图
+    if (type === sectorType.value) {
+      candleSectors.value = typeCandle.value
+    }
     // 持久化保存
-    saveToStorage(candleSectors.value, sectorType.value)
+    saveToStorage(typeCandle.value, type)
   } catch (e) {
     console.error('板块资金流向获取失败:', e)
   } finally {
     loading.value = false
   }
+}
+
+// 拉取指定板块类型的数据（供 Dashboard 双图同时拉取 industry/concept，不影响当前选中类型）
+async function fetchDataByType(type) {
+  await fetchData(type)
 }
 
 // 切换自动刷新
@@ -325,13 +367,18 @@ function toggleAutoRefresh() {
 
 // 切换板块类型
 function onSectorTypeChange() {
-  // 切换板块类型时重置告警基线，但保留K线持久化数据
-  _prevSnapshot = null
-  _alertInitialized = false
-  _currentDate = null
-  candleSectors.value = {}
-  // fetchData 会自动从 localStorage 恢复对应板块类型的数据
+  // 切换时重置当前类型的告警基线，但保留各类的K线聚合数据
+  _prevSnapshotByType[sectorType.value] = null
+  _alertInitializedByType[sectorType.value] = false
+  // 立即切换当前视图到目标类型的缓存（无需清空，数据已按类型分别存储）
+  candleSectors.value = candleSectorsByType[sectorType.value].value
+  // fetchData 会继续增量更新对应板块类型的数据
   fetchData()
+}
+
+// 获取指定类型的K线聚合数据（供同时渲染多类型图表使用）
+function getCandleSectors(type) {
+  return candleSectorsByType[type] || candleSectorsByType.industry
 }
 
 export function useSectorFundFlow(voiceRef) {
@@ -350,7 +397,10 @@ export function useSectorFundFlow(voiceRef) {
     isFileProtocol,
     selectedVoice,
     candleSectors,
+    candleSectorsByType,
+    getCandleSectors,
     fetchData,
+    fetchDataByType,
     toggleAutoRefresh,
     onSectorTypeChange,
     formatAmount,
