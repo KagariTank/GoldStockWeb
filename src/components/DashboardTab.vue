@@ -124,7 +124,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import * as echarts from 'echarts'
+import { init as echartsInit, graphic as echartsGraphic } from '@/lib/echarts'
 import Button from '@/components/ui/Button.vue'
 import { useVolumeMonitor } from '@/composables/useVolumeMonitor.js'
 import { useSectorFundFlow } from '@/composables/useSectorFundFlow.js'
@@ -325,11 +325,11 @@ const diffChartOption = computed(() => {
           value: v,
           itemStyle: {
             color: v >= 0
-              ? new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              ? new echartsGraphic.LinearGradient(0, 0, 0, 1, [
                   { offset: 0, color: '#ff6b6b' },
                   { offset: 1, color: '#ee5a52' }
                 ])
-              : new echarts.graphic.LinearGradient(0, 1, 0, 0, [
+              : new echartsGraphic.LinearGradient(0, 1, 0, 0, [
                   { offset: 0, color: '#26de81' },
                   { offset: 1, color: '#20bf6b' }
                 ]),
@@ -495,7 +495,7 @@ function updateCandleConceptChart() {
 watch(diffChartOption, () => {
   nextTick(() => {
     if (!diffChart && diffChartRef.value) {
-      diffChart = echarts.init(diffChartRef.value)
+      diffChart = echartsInit(diffChartRef.value)
       window.addEventListener('resize', handleResize)
     }
     updateDiffChart()
@@ -505,7 +505,7 @@ watch(diffChartOption, () => {
 watch(fundSectorCandleIndustry, () => {
   nextTick(() => {
     if (!candleIndustryChart && candleIndustryChartRef.value) {
-      candleIndustryChart = echarts.init(candleIndustryChartRef.value)
+      candleIndustryChart = echartsInit(candleIndustryChartRef.value)
       window.addEventListener('resize', handleResize)
     }
     updateCandleIndustryChart()
@@ -515,7 +515,7 @@ watch(fundSectorCandleIndustry, () => {
 watch(fundSectorCandleConcept, () => {
   nextTick(() => {
     if (!candleConceptChart && candleConceptChartRef.value) {
-      candleConceptChart = echarts.init(candleConceptChartRef.value)
+      candleConceptChart = echartsInit(candleConceptChartRef.value)
       window.addEventListener('resize', handleResize)
     }
     updateCandleConceptChart()
@@ -527,15 +527,15 @@ onMounted(() => {
   // 如果已有数据（从 composable 单例），立即初始化图表
   nextTick(() => {
     if (diffChartRef.value && volMinuteData.value.length > 0) {
-      diffChart = echarts.init(diffChartRef.value)
+      diffChart = echartsInit(diffChartRef.value)
       updateDiffChart()
     }
     if (candleIndustryChartRef.value && fundSectorCandleIndustry.value.length > 0) {
-      candleIndustryChart = echarts.init(candleIndustryChartRef.value)
+      candleIndustryChart = echartsInit(candleIndustryChartRef.value)
       updateCandleIndustryChart()
     }
     if (candleConceptChartRef.value && fundSectorCandleConcept.value.length > 0) {
-      candleConceptChart = echarts.init(candleConceptChartRef.value)
+      candleConceptChart = echartsInit(candleConceptChartRef.value)
       updateCandleConceptChart()
     }
   })

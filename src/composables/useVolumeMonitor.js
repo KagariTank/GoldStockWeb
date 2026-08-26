@@ -1,6 +1,8 @@
 import { ref, computed } from 'vue'
 import { fireNotify, initAudio } from '@/js/notify.js'
 import { createAutoRefreshTimer } from './useTimerManager.js'
+import { selectedVoice } from './useVoice.js'
+import { isFileProtocol } from './useEnv.js'
 // ===== 单例状态 =====
 const loading = ref(false)
 const lastUpdate = ref('')
@@ -21,9 +23,6 @@ const trendLabel = ref('')
 
 // 告警历史（防重复）
 const alertEnabled = ref(true)
-const isFileProtocol = ref(false)
-try { isFileProtocol.value = /^file:$/i.test(window.location.protocol) } catch (e) {}
-const selectedVoice = ref('')
 const _alertCooldown = {}       // { type: timestamp }
 const COOLDOWN_MS = 60 * 1000  // 1 分钟冷却
 let _prevTrend = ''             // 上一次的趋势状态
@@ -871,11 +870,7 @@ const cumulativeDiffColor = computed(() => {
   return 'text-muted-foreground'
 })
 
-export function useVolumeMonitor(voiceRef) {
-  if (voiceRef && voiceRef.value) {
-    selectedVoice.value = voiceRef.value
-  }
-
+export function useVolumeMonitor() {
   return {
     loading,
     lastUpdate,

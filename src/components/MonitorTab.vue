@@ -386,7 +386,7 @@ import DatePicker from '@/components/ui/DatePicker.vue'
 import FormItem from '@/components/ui/FormItem.vue'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell, TableExpandRow } from '@/components/ui/Table'
 import { useMonitorData } from '@/composables/useMonitorData.js'
-import { getMarket, getMarketLabel, getChgClass, formatChg, getPnlClass } from '@/js/utils.js'
+import { getMarket, getMarketLabel, getChgClass, formatChg, getPnlClass, formatMoney } from '@/js/utils.js'
 
 // Use monitor data composable
 const {
@@ -441,13 +441,6 @@ const getTrendClass = (trend) => {
     case 'crash': return 'text-red-600 font-medium'
     default: return 'text-gray-400'
   }
-}
-
-const formatMoney = (amount) => {
-  if (!amount) return '-'
-  if (amount >= 1e8) return (amount / 1e8).toFixed(2) + '亿'
-  if (amount >= 1e4) return (amount / 1e4).toFixed(2) + '万'
-  return amount.toFixed(0) + '元'
 }
 
 // Helper functions for template

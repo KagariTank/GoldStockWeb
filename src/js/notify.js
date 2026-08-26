@@ -390,7 +390,7 @@ export function clearAllNotifications() {
     _activeNotifications.forEach(n => {
       try {
         n.close();
-      } catch (e) { }
+      } catch (e) { console.warn('关闭单个通知失败:', e) }
     });
     _activeNotifications = [];
     console.log('已关闭所有系统通知');

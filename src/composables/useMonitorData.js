@@ -1,7 +1,9 @@
 import { ref } from 'vue'
-import { formatCode, ensureFields, calculateRow } from '@/js/utils.js'
+import { formatCode, ensureFields, calculateRow, formatMoney } from '@/js/utils.js'
 import { initAudio, fireNotify, speakAlert } from '@/js/notify.js'
 import { createAutoRefreshTimer } from './useTimerManager.js'
+import { selectedVoice } from './useVoice.js'
+import { isFileProtocol } from './useEnv.js'
 
 // ===== 单例状态（所有组件共享） =====
 const STORAGE_KEY = 'phi_batch_table_v7'
@@ -29,25 +31,27 @@ const _monitorTimer = createAutoRefreshTimer('monitor', {
     if ('Notification' in window) {
       if (Notification.permission === 'granted') {
         setTimeout(() => {
-          fireNotify('🔄 自动刷新已开启', '将每 30 秒刷新一次数据，并在触发阈值时发送提醒。', 1, isFileProtocol.value, selectedVoice.value)
+          fireNotify('🔄 自动刷新已开启', '将每 30 秒刷新一次数据，并在触发阈值时发送提醒。', 1, isFileProtocol.value, selectedVoice)
         }, 80)
       } else if (Notification.permission === 'default') {
         try {
           Notification.requestPermission().then(r => {
             setTimeout(() => {
               if (r === 'granted') {
-                fireNotify('🔄 自动刷新已开启', '将每 30 秒刷新一次数据，并在触发阈值时发送系统通知。', 1, isFileProtocol.value, selectedVoice.value)
+                fireNotify('🔄 自动刷新已开启', '将每 30 秒刷新一次数据，并在触发阈值时发送系统通知。', 1, isFileProtocol.value, selectedVoice)
               } else {
-                speakAlert('自动刷新已开启', '未开启系统通知。触发阈值时将通过站内消息和语音进行提醒。', 1, selectedVoice.value)
+                speakAlert('自动刷新已开启', '未开启系统通知。触发阈值时将通过站内消息和语音进行提醒。', 1, selectedVoice)
               }
             }, 200)
           })
-        } catch (e) {}
+        } catch (e) {
+          console.warn('请求通知权限失败:', e)
+        }
       } else {
-        speakAlert('自动刷新已开启', '通知权限已拒绝。将使用站内消息加语音进行提醒。', 1, selectedVoice.value)
+        speakAlert('自动刷新已开启', '通知权限已拒绝。将使用站内消息加语音进行提醒。', 1, selectedVoice)
       }
     } else {
-      speakAlert('自动刷新已开启', '将每 30 秒刷新一次数据。', 1, selectedVoice.value)
+      speakAlert('自动刷新已开启', '将每 30 秒刷新一次数据。', 1, selectedVoice)
     }
     refreshAllPrices()
   },
@@ -81,15 +85,6 @@ const addPosForm = ref({
 
 // Expanded rows
 const expandedRows = ref(new Set())
-
-// Is file protocol
-const isFileProtocol = ref(false)
-try {
-  isFileProtocol.value = /^file:$/i.test(window.location.protocol)
-} catch (e) {}
-
-// Selected voice
-const selectedVoice = ref('')
 
 // ===== 单例初始化标记 =====
 let _initialized = false
@@ -401,13 +396,6 @@ const checkSealAlerts = () => {
   })
 }
 
-// 格式化金额
-function formatMoney(amount) {
-  if (amount >= 1e8) return (amount / 1e8).toFixed(2) + '亿'
-  if (amount >= 1e4) return (amount / 1e4).toFixed(2) + '万'
-  return amount.toFixed(0) + '元'
-}
-
 const fetchData = (codes, isAddition = true) => {
   if (codes.length === 0) return
   loading.value = true
@@ -514,6 +502,12 @@ const fetchData = (codes, isAddition = true) => {
     // 刷新数据时总是检查告警（skipNotify只在首次加载时为true）
     checkAllAlerts(!_alertInitialized)
     _alertInitialized = true
+  }
+
+  script.onerror = () => {
+    console.warn('行情数据请求失败（腾讯 JSONP），可能是网络问题或接口被限流')
+    loading.value = false
+    script.remove()
   }
 }
 
@@ -642,7 +636,7 @@ const initializeOnce = () => {
   // Restore alert flags
   const cachedFlags = localStorage.getItem('alert_flags_v1')
   if (cachedFlags) {
-    try { alertFlags.value = JSON.parse(cachedFlags) } catch (e) {}
+    try { alertFlags.value = JSON.parse(cachedFlags) } catch (e) { console.warn('解析缓存的告警标记失败:', e) }
   }
 
   // Restore monitor data
@@ -654,14 +648,9 @@ const initializeOnce = () => {
   }
 }
 
-export function useMonitorData(voiceRef) {
+export function useMonitorData() {
   // 确保只初始化一次
   initializeOnce()
-
-  // Update selected voice if provided
-  if (voiceRef && voiceRef.value) {
-    selectedVoice.value = voiceRef.value
-  }
 
   return {
     // State

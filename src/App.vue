@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, defineAsyncComponent } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import Textarea from '@/components/ui/Textarea.vue'
 import Dialog from '@/components/ui/Dialog.vue'
@@ -7,18 +7,22 @@ import Toast from '@/components/ui/Toast.vue'
 import { setToastInstance } from '@/js/toast.js'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import Tabs from '@/components/ui/Tabs.vue'
-import MonitorTab from '@/components/MonitorTab.vue'
-import DividendTab from '@/components/DividendTab.vue'
-import SectorFundFlowTab from '@/components/SectorFundFlowTab.vue'
-import VolumeMonitorTab from '@/components/VolumeMonitorTab.vue'
-import DashboardTab from '@/components/DashboardTab.vue'
 import TimerControlPanel from '@/components/TimerControlPanel.vue'
+
+// Tab 组件懒加载（按需加载，减小首屏体积）
+const DashboardTab = defineAsyncComponent(() => import('@/components/DashboardTab.vue'))
+const MonitorTab = defineAsyncComponent(() => import('@/components/MonitorTab.vue'))
+const DividendTab = defineAsyncComponent(() => import('@/components/DividendTab.vue'))
+const SectorFundFlowTab = defineAsyncComponent(() => import('@/components/SectorFundFlowTab.vue'))
+const VolumeMonitorTab = defineAsyncComponent(() => import('@/components/VolumeMonitorTab.vue'))
 
 import { ensureFields, calculateRow } from '@/js/utils.js'
 import { initVoices, testNotify, clearAllNotifications } from '@/js/notify.js'
 import { useMonitorData } from '@/composables/useMonitorData.js'
 import { useDividendData } from '@/composables/useDividendData.js'
 import { useTheme } from '@/composables/useTheme.js'
+import { useVoice } from '@/composables/useVoice.js'
+import { useEnv } from '@/composables/useEnv.js'
 
 // State
 const activeTab = ref('dashboard')
@@ -35,11 +39,8 @@ const selectedFileName = ref('')
 // Voice
 const chineseVoices = ref([])
 
-// Is file protocol
-const isFileProtocol = ref(false)
-try {
-  isFileProtocol.value = /^file:$/i.test(window.location.protocol)
-} catch (e) {}
+// Environment
+const { isFileProtocol } = useEnv()
 
 // Tab options
 const tabOptions = [
@@ -55,8 +56,7 @@ const {
   tableData,
   alertFlags,
   refreshAllPrices,
-  saveToLocal,
-  selectedVoice
+  saveToLocal
 } = useMonitorData()
 
 // Use dividend data composable (for import/export)
@@ -70,6 +70,9 @@ const {
 
 // Theme
 const { isDark, toggleTheme } = useTheme()
+
+// Voice (shared across all composables)
+const { selectedVoice } = useVoice()
 
 // Voice dropdown
 const onDropdownCommand = (command) => {

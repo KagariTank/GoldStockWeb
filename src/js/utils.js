@@ -1,5 +1,13 @@
 // 工具函数模块
 
+// 格式化金额（亿/万/元）
+export function formatMoney(amount) {
+  if (!amount) return '-'
+  if (amount >= 1e8) return (amount / 1e8).toFixed(2) + '亿'
+  if (amount >= 1e4) return (amount / 1e4).toFixed(2) + '万'
+  return amount.toFixed(0) + '元'
+}
+
 // 代码格式化逻辑
 export function formatCode(code) {
   code = code.trim().toLowerCase();

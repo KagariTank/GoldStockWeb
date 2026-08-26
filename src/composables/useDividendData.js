@@ -3,6 +3,8 @@ import { formatCode } from '@/js/utils.js'
 import { calcDividendFields, checkDividendAlerts } from '@/js/dividend.js'
 import { initAudio, fireNotify } from '@/js/notify.js'
 import { createAutoRefreshTimer } from './useTimerManager.js'
+import { selectedVoice } from './useVoice.js'
+import { isFileProtocol } from './useEnv.js'
 
 // State
 const dividendInputCodes = ref('')
@@ -31,15 +33,6 @@ const _dividendTimer = createAutoRefreshTimer('dividend', {
 
 const autoDividendRefresh = _dividendTimer.isActive
 const dividendCountdown = _dividendTimer.countdown
-
-// Is file protocol
-const isFileProtocol = ref(false)
-try {
-  isFileProtocol.value = /^file:$/i.test(window.location.protocol)
-} catch (e) {}
-
-// Selected voice
-const selectedVoice = ref('')
 
 // ===== 单例初始化标记 =====
 let _dividendInitialized = false
@@ -221,7 +214,9 @@ const initializeDividendOnce = () => {
         ...item,
         dividendPerShare: item.dividendPerShare || 0
       }))
-    } catch (e) {}
+    } catch (e) {
+      console.warn('解析缓存的高股息股票列表失败:', e)
+    }
   }
 
   // Restore dividend data
@@ -245,18 +240,15 @@ const initializeDividendOnce = () => {
           maxDividendRate.value = Math.max(...rates) * 1.2
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('解析缓存的股息数据失败:', e)
+    }
   }
 }
 
-export function useDividendData(voiceRef) {
+export function useDividendData() {
   // 确保只初始化一次
   initializeDividendOnce()
-
-  // Update selected voice if provided
-  if (voiceRef && voiceRef.value) {
-    selectedVoice.value = voiceRef.value
-  }
 
   return {
     // State

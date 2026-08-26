@@ -165,7 +165,7 @@
 
 <script setup>
 import { ref, computed, h, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import * as echarts from 'echarts'
+import { init as echartsInit } from '@/lib/echarts'
 import Button from '@/components/ui/Button.vue'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/Table'
 import { useSectorFundFlow } from '@/composables/useSectorFundFlow.js'
@@ -425,7 +425,7 @@ watch(sectorCandleData, () => {
   nextTick(() => {
     if (candleChartRef.value) {
       if (!candleChart) {
-        candleChart = echarts.init(candleChartRef.value)
+        candleChart = echartsInit(candleChartRef.value)
         window.addEventListener('resize', handleResize)
       }
       updateCandleChart()

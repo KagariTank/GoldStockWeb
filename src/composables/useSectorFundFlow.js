@@ -1,6 +1,8 @@
 import { ref } from 'vue'
 import { fireNotify, initAudio } from '@/js/notify.js'
 import { createAutoRefreshTimer } from './useTimerManager.js'
+import { selectedVoice } from './useVoice.js'
+import { isFileProtocol } from './useEnv.js'
 
 // ===== 单例状态 =====
 const sectorType = ref('industry') // industry | concept
@@ -92,9 +94,6 @@ const countdown = _sectorTimer.countdown
 
 // 告警
 const alertEnabled = ref(true)
-const isFileProtocol = ref(false)
-try { isFileProtocol.value = /^file:$/i.test(window.location.protocol) } catch (e) {}
-const selectedVoice = ref('')
 const _alertInitializedByType = { industry: false, concept: false } // 告警基线是否已建立，按类型
 const _alertCooldown = {} // { `${code}_${type}`: timestamp }
 const COOLDOWN_MS = 5 * 60 * 1000 // 5 分钟冷却
@@ -381,11 +380,7 @@ function getCandleSectors(type) {
   return candleSectorsByType[type] || candleSectorsByType.industry
 }
 
-export function useSectorFundFlow(voiceRef) {
-  if (voiceRef && voiceRef.value) {
-    selectedVoice.value = voiceRef.value
-  }
-
+export function useSectorFundFlow() {
   return {
     sectorType,
     tableData,

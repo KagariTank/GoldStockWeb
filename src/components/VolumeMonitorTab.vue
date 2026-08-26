@@ -154,7 +154,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import * as echarts from 'echarts'
+import { init as echartsInit, graphic as echartsGraphic } from '@/lib/echarts'
 import Button from '@/components/ui/Button.vue'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/Table'
 import { useVolumeMonitor } from '@/composables/useVolumeMonitor.js'
@@ -312,11 +312,11 @@ const diffChartOption = computed(() => {
           value: v,
           itemStyle: {
             color: v >= 0
-              ? new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              ? new echartsGraphic.LinearGradient(0, 0, 0, 1, [
                   { offset: 0, color: '#ff6b6b' },
                   { offset: 1, color: '#ee5a52' }
                 ])
-              : new echarts.graphic.LinearGradient(0, 1, 0, 0, [
+              : new echartsGraphic.LinearGradient(0, 1, 0, 0, [
                   { offset: 0, color: '#26de81' },
                   { offset: 1, color: '#20bf6b' }
                 ]),
@@ -378,7 +378,7 @@ function updateDiffChart() {
 watch(diffChartOption, () => {
   nextTick(() => {
     if (!diffChart && diffChartRef.value) {
-      diffChart = echarts.init(diffChartRef.value)
+      diffChart = echartsInit(diffChartRef.value)
     }
     updateDiffChart()
   })
@@ -386,7 +386,7 @@ watch(diffChartOption, () => {
 
 onMounted(() => {
   if (diffChartRef.value) {
-    diffChart = echarts.init(diffChartRef.value)
+    diffChart = echartsInit(diffChartRef.value)
   }
 })
 
