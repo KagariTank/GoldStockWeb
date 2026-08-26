@@ -8,6 +8,8 @@ const _globalPause = ref(false)
 
 // ===== 统计信息 =====
 const timerStats = ref({ total: 0, active: 0, paused: 0 })
+// 响应式版本号：_timers 注册表变动时自增，供 UI 的 timers 列表依赖刷新
+const _timersVersion = ref(0)
 
 function updateStats() {
   let active = 0
@@ -17,6 +19,7 @@ function updateStats() {
     else paused++
   }
   timerStats.value = { total: _timers.size, active, paused }
+  _timersVersion.value++
 }
 
 /**
@@ -90,6 +93,12 @@ export function createAutoRefreshTimer(name, config) {
     if (isActive.value) return
     if (_timeoutId) return  // 防止重复启动
 
+    // 若已被 stopAll/destroyTimer 从注册表移除（composable 仍持有句柄闭包），重新注册，
+    // 否则会形成"实际在跑但面板看不到/控制不了"的幽灵定时器
+    if (!_timers.has(name)) {
+      _timers.set(name, { handle, config: { refreshInterval, initialCountdown } })
+    }
+
     if (onStart) onStart()
     isActive.value = true
     _remainingMs = intervalDuration.value * 1000
@@ -158,6 +167,8 @@ export function createAutoRefreshTimer(name, config) {
   }
 
   _timers.set(name, { handle, config: { refreshInterval, initialCountdown } })
+  // 注册后立即刷新统计，否则面板 stats 与实际注册表不同步（按钮显示/隐藏异常）
+  updateStats()
   return handle
 }
 
@@ -197,9 +208,11 @@ export function stopAll() {
 }
 
 /**
- * 获取所有定时器
+ * 获取所有定时器（响应式：注册表变动时返回新数组，供面板列表使用）
  */
 export function getAllTimers() {
+  // 读取版本号，建立响应式依赖
+  void _timersVersion.value
   const result = []
   for (const [name, t] of _timers) {
     result.push({
