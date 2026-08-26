@@ -123,8 +123,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { init as echartsInit, graphic as echartsGraphic } from '@/lib/echarts'
+import { ref, computed, watch, watchEffect, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { init as echartsInit, graphic as echartsGraphic, getInstanceByDom as echartsGetInstanceByDom } from '@/lib/echarts'
 import Button from '@/components/ui/Button.vue'
 import { useVolumeMonitor } from '@/composables/useVolumeMonitor.js'
 import { useSectorFundFlow } from '@/composables/useSectorFundFlow.js'
@@ -384,6 +384,13 @@ const candleIndustryChartRef = ref(null)
 const candleConceptChartRef = ref(null)
 let candleIndustryChart = null
 let candleConceptChart = null
+// 防止 resize 监听器重复注册（多个 watch + onMounted 都会尝试注册）
+let _resizeBound = false
+function ensureResizeListener() {
+  if (_resizeBound) return
+  _resizeBound = true
+  window.addEventListener('resize', handleResize)
+}
 
 function buildCandleChartOption(candles) {
   if (!candles || candles.length === 0) return {}
@@ -492,58 +499,43 @@ function updateCandleConceptChart() {
 }
 
 // ===== Watchers =====
-watch(diffChartOption, () => {
-  nextTick(() => {
-    if (!diffChart && diffChartRef.value) {
-      diffChart = echartsInit(diffChartRef.value)
-      window.addEventListener('resize', handleResize)
-    }
-    updateDiffChart()
-  })
-}, { deep: true })
+// 使用 watchEffect + flush:'post' 确保在 DOM 更新后执行，
+// 解决「数据到达时 fundLoading 仍为 true → chart div 未渲染 → ref 为 null → init 被跳过」的竞态
+watchEffect(() => {
+  // 读取依赖（diffChartOption / fundSectorCandleIndustry / fundSectorCandleConcept）
+  const diffOpt = diffChartOption.value
+  const industryData = fundSectorCandleIndustry.value
+  const conceptData = fundSectorCandleConcept.value
+  // flush:'post' 保证 nextTick 不再需要——DOM 已更新
+  if (!diffChart && diffChartRef.value && diffOpt) {
+    // DOM 上可能已有 ECharts 实例（HMR 或 Tab 切换后 DOM 复用），复用而非重复 init
+    diffChart = echartsGetInstanceByDom(diffChartRef.value) || echartsInit(diffChartRef.value)
+    ensureResizeListener()
+  }
+  if (diffChart) updateDiffChart()
 
-watch(fundSectorCandleIndustry, () => {
-  nextTick(() => {
-    if (!candleIndustryChart && candleIndustryChartRef.value) {
-      candleIndustryChart = echartsInit(candleIndustryChartRef.value)
-      window.addEventListener('resize', handleResize)
-    }
-    updateCandleIndustryChart()
-  })
-}, { deep: true })
+  if (!candleIndustryChart && candleIndustryChartRef.value && industryData.length > 0) {
+    candleIndustryChart = echartsGetInstanceByDom(candleIndustryChartRef.value) || echartsInit(candleIndustryChartRef.value)
+    ensureResizeListener()
+  }
+  if (candleIndustryChart) updateCandleIndustryChart()
 
-watch(fundSectorCandleConcept, () => {
-  nextTick(() => {
-    if (!candleConceptChart && candleConceptChartRef.value) {
-      candleConceptChart = echartsInit(candleConceptChartRef.value)
-      window.addEventListener('resize', handleResize)
-    }
-    updateCandleConceptChart()
-  })
-}, { deep: true })
+  if (!candleConceptChart && candleConceptChartRef.value && conceptData.length > 0) {
+    candleConceptChart = echartsGetInstanceByDom(candleConceptChartRef.value) || echartsInit(candleConceptChartRef.value)
+    ensureResizeListener()
+  }
+  if (candleConceptChart) updateCandleConceptChart()
+}, { flush: 'post' })
 
 // ===== Lifecycle =====
 onMounted(() => {
-  // 如果已有数据（从 composable 单例），立即初始化图表
-  nextTick(() => {
-    if (diffChartRef.value && volMinuteData.value.length > 0) {
-      diffChart = echartsInit(diffChartRef.value)
-      updateDiffChart()
-    }
-    if (candleIndustryChartRef.value && fundSectorCandleIndustry.value.length > 0) {
-      candleIndustryChart = echartsInit(candleIndustryChartRef.value)
-      updateCandleIndustryChart()
-    }
-    if (candleConceptChartRef.value && fundSectorCandleConcept.value.length > 0) {
-      candleConceptChart = echartsInit(candleConceptChartRef.value)
-      updateCandleConceptChart()
-    }
-  })
-  window.addEventListener('resize', handleResize)
+  // watchEffect(flush:'post') 已在 DOM 挂载后自动初始化图表，此处仅确保 resize 监听
+  ensureResizeListener()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  _resizeBound = false
   if (diffChart) {
     diffChart.dispose()
     diffChart = null

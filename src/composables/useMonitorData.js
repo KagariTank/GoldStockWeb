@@ -409,7 +409,19 @@ const fetchData = (codes, isAddition = true) => {
   script.src = `https://qt.gtimg.cn/q=${queryStr}`
   document.body.appendChild(script)
 
+  // 超时保护：网络挂起时 script 既不触发 onload 也不触发 onerror，会导致 loading 永久卡死
+  let _timedOut = false
+  const _timeoutId = setTimeout(() => {
+    if (!loading.value) return
+    _timedOut = true
+    console.warn('行情数据请求超时（10s），可能是网络问题或接口被限流')
+    loading.value = false
+    script.remove()
+  }, 10000)
+
   script.onload = () => {
+    if (_timedOut) return
+    clearTimeout(_timeoutId)
     codes.forEach(code => {
       const dataStr = window[`v_${code}`]
       if (dataStr) {
@@ -505,6 +517,8 @@ const fetchData = (codes, isAddition = true) => {
   }
 
   script.onerror = () => {
+    if (_timedOut) return
+    clearTimeout(_timeoutId)
     console.warn('行情数据请求失败（腾讯 JSONP），可能是网络问题或接口被限流')
     loading.value = false
     script.remove()

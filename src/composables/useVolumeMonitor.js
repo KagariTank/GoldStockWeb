@@ -38,6 +38,8 @@ let _lastCrossTime = 0         // 上次交叉检测时间戳
 const _volumeTimer = createAutoRefreshTimer('volume', {
   onRefresh: () => {
     if (!loading.value) fetchData()
+    // 每次刷新时检查是否需要调整频率（替代模块级 setInterval）
+    updateRefreshInterval()
   },
   refreshInterval: 60,
   initialCountdown: 60,
@@ -84,9 +86,6 @@ function updateRefreshInterval() {
     _volumeTimer.updateInterval(newInterval)
   }
 }
-
-// 每分钟检查一次是否需要调整刷新频率
-const _intervalCheckId = setInterval(updateRefreshInterval, 60 * 1000)
 
 const autoRefresh = _volumeTimer.isActive
 const countdown = _volumeTimer.countdown

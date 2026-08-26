@@ -113,10 +113,12 @@ const fetchDividendData = () => {
     saveDividendStocksToLocal()
     localStorage.setItem('dividend_data_v1', JSON.stringify(dividendTableData.value))
     dividendLoading.value = false
-    checkDividendAlerts(dividendTableData.value, dividendAlertFlags.value, (title, body, level) => fireNotify(title, body, level, isFileProtocol.value, selectedVoice), selectedVoice)
+    checkDividendAlerts(dividendTableData.value, dividendAlertFlags.value, (title, body, level) => fireNotify(title, body, level, isFileProtocol.value, selectedVoice))
   }
 
   script.onerror = () => {
+    if (_timedOut) return
+    clearTimeout(_timeoutId)
     dividendLoading.value = false
     alert('刷新失败，请重试')
   }
@@ -162,6 +164,8 @@ const addDividendCodes = () => {
   }
 
   script.onerror = () => {
+    if (_timedOut) return
+    clearTimeout(_timeoutId)
     dividendLoading.value = false
     alert('股票查询失败')
   }
@@ -198,7 +202,7 @@ const onUpdateDividendPerShareHandler = (row) => {
   }
   saveDividendStocksToLocal()
   localStorage.setItem('dividend_data_v1', JSON.stringify(dividendTableData.value))
-  checkDividendAlerts(dividendTableData.value, dividendAlertFlags.value, (title, body, level) => fireNotify(title, body, level, isFileProtocol.value, selectedVoice), selectedVoice)
+  checkDividendAlerts(dividendTableData.value, dividendAlertFlags.value, (title, body, level) => fireNotify(title, body, level, isFileProtocol.value, selectedVoice))
 }
 
 // ===== 初始化函数（只执行一次） =====

@@ -21,7 +21,7 @@ export function dividendAlertTypeKey(code, type) {
   return `dividend__${code}__${type}`;
 }
 
-export function checkDividendAlerts(tableData, flags, fireNotify, selectedVoice) {
+export function checkDividendAlerts(tableData, flags, fireNotify) {
   tableData.forEach(row => {
     const code = row.fullCode;
     const rate = parseFloat(row.dividendRate);
@@ -40,7 +40,7 @@ export function checkDividendAlerts(tableData, flags, fireNotify, selectedVoice)
         if (!flags[key]) {
           flags[key] = rate;
           const emoji = getDividendEmoji(threshold);
-          fireNotify(`${emoji} 股息率突破`, `${name} 股息率达到 ${threshold}%（当前 ${rate.toFixed(2)}%）`, 2, selectedVoice);
+          fireNotify(`${emoji} 股息率突破`, `${name} 股息率达到 ${threshold}%（当前 ${rate.toFixed(2)}%）`, 2);
         }
       } else {
         // 其他阈值：清除标记

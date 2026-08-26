@@ -154,7 +154,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { init as echartsInit, graphic as echartsGraphic } from '@/lib/echarts'
+import { init as echartsInit, graphic as echartsGraphic, getInstanceByDom as echartsGetInstanceByDom } from '@/lib/echarts'
 import Button from '@/components/ui/Button.vue'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/Table'
 import { useVolumeMonitor } from '@/composables/useVolumeMonitor.js'
@@ -163,10 +163,8 @@ const {
   loading,
   lastUpdate,
   header,
-  points,
   minuteData,
   indexData,
-  trendStatus,
   trendLabel,
   trendColor,
   trendIcon,
@@ -182,8 +180,7 @@ const {
   vsYesterdaySamePeriod,
   fetchData,
   toggleAutoRefresh,
-  formatVolume,
-  formatPercent
+  formatVolume
 } = useVolumeMonitor()
 
 const showRules = ref(false)
@@ -386,7 +383,7 @@ watch(diffChartOption, () => {
 
 onMounted(() => {
   if (diffChartRef.value) {
-    diffChart = echartsInit(diffChartRef.value)
+    diffChart = echartsGetInstanceByDom(diffChartRef.value) || echartsInit(diffChartRef.value)
   }
 })
 
