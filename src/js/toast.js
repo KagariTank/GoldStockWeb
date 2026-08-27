@@ -9,8 +9,6 @@ export function showToast(options) {
   if (_toastInstance) {
     return _toastInstance.add(options)
   }
-  // 降级到 console
-  console.log('[Toast]', options.message)
 }
 
 export function toastSuccess(message, duration = 4500) {

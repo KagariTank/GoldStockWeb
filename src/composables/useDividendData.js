@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { formatCode } from '@/js/utils.js'
 import { calcDividendFields, checkDividendAlerts } from '@/js/dividend.js'
 import { initAudio, fireNotify } from '@/js/notify.js'
+import { toastError, toastWarning } from '@/js/toast.js'
 import { createAutoRefreshTimer } from './useTimerManager.js'
 import { selectedVoice } from './useVoice.js'
 import { isFileProtocol } from './useEnv.js'
@@ -42,7 +43,43 @@ const saveDividendStocksToLocal = () => {
   localStorage.setItem('dividend_stocks_v1', JSON.stringify(dividendStockList.value))
 }
 
-const fetchDividendData = () => {
+// 公共的 JSONP 请求辅助：带 10 秒超时保护 + 防竞争（参照 useMonitorData 标准）
+function jsonpRequest(url, id) {
+  return new Promise((resolve, reject) => {
+    const oldScript = document.getElementById(id)
+    if (oldScript) oldScript.remove()
+
+    const script = document.createElement('script')
+    script.id = id
+    script.src = url
+    document.body.appendChild(script)
+
+    let _timedOut = false
+    const _timeoutId = setTimeout(() => {
+      if (_timedOut) return
+      _timedOut = true
+      console.warn(`JSONP 请求超时（10s）：${url.slice(0, 80)}`)
+      script.remove()
+      reject(new Error('timeout'))
+    }, 10000)
+
+    script.onload = () => {
+      if (_timedOut) return
+      clearTimeout(_timeoutId)
+      resolve()
+    }
+
+    script.onerror = () => {
+      if (_timedOut) return
+      clearTimeout(_timeoutId)
+      console.warn('JSONP 请求失败，可能是网络问题或接口被限流')
+      script.remove()
+      reject(new Error('network'))
+    }
+  })
+}
+
+const fetchDividendData = async () => {
   const codes = dividendStockList.value.map(item => item.fullCode).filter(c => c)
   if (codes.length === 0) {
     dividendLoading.value = false
@@ -52,15 +89,9 @@ const fetchDividendData = () => {
   dividendLoading.value = true
   const queryStr = codes.join(',')
 
-  const oldScript = document.getElementById('jsonp-dividend')
-  if (oldScript) oldScript.remove()
+  try {
+    await jsonpRequest(`https://qt.gtimg.cn/q=${queryStr}`, 'jsonp-dividend')
 
-  const script = document.createElement('script')
-  script.id = 'jsonp-dividend'
-  script.src = `https://qt.gtimg.cn/q=${queryStr}`
-  document.body.appendChild(script)
-
-  script.onload = () => {
     codes.forEach(code => {
       const dataStr = window[`v_${code}`]
       if (dataStr) {
@@ -112,34 +143,24 @@ const fetchDividendData = () => {
 
     saveDividendStocksToLocal()
     localStorage.setItem('dividend_data_v1', JSON.stringify(dividendTableData.value))
-    dividendLoading.value = false
     checkDividendAlerts(dividendTableData.value, dividendAlertFlags.value, (title, body, level) => fireNotify(title, body, level, isFileProtocol.value, selectedVoice))
-  }
-
-  script.onerror = () => {
-    if (_timedOut) return
-    clearTimeout(_timeoutId)
+  } catch (e) {
+    toastWarning('股息行情刷新失败，请检查网络后重试')
+  } finally {
     dividendLoading.value = false
-    alert('刷新失败，请重试')
   }
 }
 
-const addDividendCodes = () => {
+const addDividendCodes = async () => {
   const codes = dividendInputCodes.value.split(/[,\s\n]/).map(c => formatCode(c)).filter(c => c)
   if (codes.length === 0) return
 
   dividendLoading.value = true
   const queryStr = codes.join(',')
 
-  const oldScript = document.getElementById('jsonp-dividend')
-  if (oldScript) oldScript.remove()
+  try {
+    await jsonpRequest(`https://qt.gtimg.cn/q=${queryStr}`, 'jsonp-dividend')
 
-  const script = document.createElement('script')
-  script.id = 'jsonp-dividend'
-  script.src = `https://qt.gtimg.cn/q=${queryStr}`
-  document.body.appendChild(script)
-
-  script.onload = () => {
     codes.forEach(code => {
       const dataStr = window[`v_${code}`]
       if (dataStr) {
@@ -158,16 +179,12 @@ const addDividendCodes = () => {
       }
     })
     dividendInputCodes.value = ''
-    dividendLoading.value = false
     saveDividendStocksToLocal()
-    fetchDividendData()
-  }
-
-  script.onerror = () => {
-    if (_timedOut) return
-    clearTimeout(_timeoutId)
+    await fetchDividendData()
+  } catch (e) {
+    toastError('股票查询失败，请检查代码或网络')
+  } finally {
     dividendLoading.value = false
-    alert('股票查询失败')
   }
 }
 

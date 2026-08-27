@@ -97,6 +97,7 @@ export function createAutoRefreshTimer(name, config) {
     // 否则会形成"实际在跑但面板看不到/控制不了"的幽灵定时器
     if (!_timers.has(name)) {
       _timers.set(name, { handle, config: { refreshInterval, initialCountdown } })
+      _timersVersion.value++  // 注册表变化，显式自增版本号
     }
 
     if (onStart) onStart()
@@ -117,7 +118,6 @@ export function createAutoRefreshTimer(name, config) {
 
     // 启动定时器
     scheduleNext(1000)
-    console.log(`[定时器] ${name} 已启动, 间隔: ${intervalDuration.value}s`)
     updateStats()
   }
 
@@ -189,6 +189,7 @@ export function destroyTimer(name) {
  */
 export function pauseAll() {
   _globalPause.value = true
+  _timersVersion.value++  // 暂停会影响每个定时器的 UI 状态，显式刷新
 }
 
 /**
@@ -196,15 +197,19 @@ export function pauseAll() {
  */
 export function resumeAll() {
   _globalPause.value = false
+  _timersVersion.value++  // 恢复也会影响 UI 状态，显式刷新
 }
 
 /**
- * 停止所有定时器
+ * 停止所有定时器（保留注册表，可重新启动）
+ * 注意：不能调用 destroyTimer（会从注册表删除），否则面板会显示"暂无注册的定时器"，
+ * 用户将失去重新启动任何定时器的入口。
  */
 export function stopAll() {
-  for (const [name] of _timers) {
-    destroyTimer(name)
+  for (const [, t] of _timers) {
+    t.handle.stop()
   }
+  _timersVersion.value++  // 全部停止影响每个定时器 UI 状态，显式刷新
 }
 
 /**

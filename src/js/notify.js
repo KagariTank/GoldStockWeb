@@ -171,12 +171,9 @@ function processNextSpeech(selectedVoice) {
   const { text, level } = item;
 
   const doSpeak = () => {
-    // 调试：打印可用的voices
     const voices = window.speechSynthesis.getVoices && window.speechSynthesis.getVoices();
-    console.log('可用的语音列表:', voices ? voices.length : 0);
     if (voices && voices.length > 0) {
       const zhVoices = voices.filter(v => /zh|chinese/i.test(v.lang || ''));
-      console.log('中文语音:', zhVoices.map(v => `${v.name}(${v.lang})`));
     }
 
     const utter = new SpeechSynthesisUtterance(text);
@@ -185,16 +182,11 @@ function processNextSpeech(selectedVoice) {
     utter.pitch = 1.0;
     utter.volume = 1.0;
 
-    // 使用用户选择的语音
     let voiceToUse = null;
     if (selectedVoice.value && voices && voices.length) {
       voiceToUse = voices.find(v => v.name === selectedVoice.value);
-      if (voiceToUse) {
-        console.log('使用选择的语音:', voiceToUse.name, voiceToUse.lang);
-      }
     }
 
-    // 如果用户没有选择，使用默认逻辑
     if (!voiceToUse && voices && voices.length) {
       const tingtingVoice = voices.find(v => v.name.includes('婷婷') && v.lang === 'zh-CN');
       const meijiaVoice = voices.find(v => v.name.includes('美嘉'));
@@ -202,9 +194,6 @@ function processNextSpeech(selectedVoice) {
       const zhCNVoice = voices.find(v => v.lang === 'zh-CN');
 
       voiceToUse = tingtingVoice || meijiaVoice || googleVoice || zhCNVoice;
-      if (voiceToUse) {
-        console.log('使用默认语音:', voiceToUse.name, voiceToUse.lang);
-      }
     }
 
     if (voiceToUse) {
@@ -214,7 +203,6 @@ function processNextSpeech(selectedVoice) {
     }
 
     let completed = false;
-    let started = false;
     const startTime = Date.now();
 
     // 超时检测：如果 8 秒内还没播放完，强制结束并播放 beep，继续队列
@@ -231,13 +219,10 @@ function processNextSpeech(selectedVoice) {
     }, 8000);
 
     utter.onstart = () => {
-      started = true;
-      console.log('语音开始播放');
+      // 无操作（保留占位，避免引擎在某些浏览器上忽略无监听器的 utterance）
     };
 
     utter.onend = () => {
-      const elapsed = Date.now() - startTime;
-      console.log(`语音播放完成(${elapsed}ms)`);
       completed = true;
       clearTimeout(timeout);
       _speechBusy = false;
@@ -260,12 +245,11 @@ function processNextSpeech(selectedVoice) {
     // 关键修复：不再多次 cancel 引擎！
     // 仅在开始新播放前，确认引擎空闲。如果引擎未空闲，尝试一次性取消。
     if (window.speechSynthesis.speaking) {
-      console.log('引擎仍在播放，取消以开始新任务...');
+      // 引擎仍在播放，取消以开始新任务
       window.speechSynthesis.cancel();
       // 给引擎一点时间处理取消
       setTimeout(() => {
         try {
-          console.log('开始调用speak()，文本:', text.substring(0, 20) + '...');
           window.speechSynthesis.speak(utter);
         } catch (e) {
           console.error('语音合成调用失败:', e);
@@ -278,7 +262,6 @@ function processNextSpeech(selectedVoice) {
       }, 150);
     } else {
       try {
-        console.log('开始调用speak()，文本:', text.substring(0, 20) + '...');
         window.speechSynthesis.speak(utter);
       } catch (e) {
         console.error('语音合成调用失败:', e);
@@ -291,13 +274,11 @@ function processNextSpeech(selectedVoice) {
     }
   };
 
-  // 等待voices准备好
-  if (!_voicesReady && window.speechSynthesis.getVoices) {
+    if (!_voicesReady && window.speechSynthesis.getVoices) {
     const checkVoices = (attempts = 0) => {
       const v = window.speechSynthesis.getVoices();
       if (v && v.length > 0) {
         _voicesReady = true;
-        console.log('Voices加载完成，数量:', v.length);
         doSpeak();
       } else if (attempts < 10) {
         setTimeout(() => checkVoices(attempts + 1), 100);
@@ -376,7 +357,6 @@ export function clearAllNotifications() {
   if ('speechSynthesis' in window) {
     try {
       window.speechSynthesis.cancel();
-      console.log('已取消语音播放');
     } catch (e) {
       console.error('取消语音失败:', e);
     }
@@ -393,13 +373,10 @@ export function clearAllNotifications() {
       } catch (e) { console.warn('关闭单个通知失败:', e) }
     });
     _activeNotifications = [];
-    console.log('已关闭所有系统通知');
   }
   
   // 清除 Toast 消息
   closeAllToasts();
-  
-  console.log('通知已清空');
   
   // 显示提示
   toastSuccess('通知已清空');

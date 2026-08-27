@@ -82,7 +82,6 @@ function updateRefreshInterval() {
   const newInterval = isTradingTime ? 15 : 60
   
   if (_volumeTimer.refreshInterval.value !== newInterval) {
-    console.log(`[量能监控] 调整刷新频率: ${_volumeTimer.refreshInterval.value}s -> ${newInterval}s (${isTradingTime ? '交易时段' : '非交易时段'})`)
     _volumeTimer.updateInterval(newInterval)
   }
 }
@@ -335,12 +334,6 @@ function analyzeTrend() {
     return
   }
 
-  console.log('[量能分析] 完整性检测', {
-    lastCompleteIdx,
-    completedCount: completedData.length,
-    lastCompleteTime: completedData[completedData.length - 1].time
-  })
-
   // ========== 主要判断：累计比率（反映整体情况）==========
   const lastPoint = completedData[completedData.length - 1]
   const cumRatio = lastPoint.yestVol > 0 ? lastPoint.todayVol / lastPoint.yestVol : 1
@@ -358,15 +351,6 @@ function analyzeTrend() {
   const todayIncrement = lastRecent.todayVol - firstRecent.todayVol
   const yestIncrement = lastRecent.yestVol - firstRecent.yestVol
   const incRatio = yestIncrement > 0 ? todayIncrement / yestIncrement : 1
-
-  console.log('[量能分析]', {
-    cumRatio: cumRatio.toFixed(4),
-    incRatio: incRatio.toFixed(4),
-    todayCum: lastPoint.todayVol.toFixed(2),
-    yestCum: lastPoint.yestVol.toFixed(2),
-    todayInc: todayIncrement.toFixed(2),
-    yestInc: yestIncrement.toFixed(2)
-  })
 
   if (!isFinite(cumRatio) || isNaN(cumRatio) || !isFinite(incRatio) || isNaN(incRatio)) {
     trendStatus.value = ''
@@ -481,13 +465,6 @@ function checkExtremeAlert() {
   const lastPoint = completedData[completedData.length - 1]
   const cumRatio = lastPoint.yestVol > 0 ? lastPoint.todayVol / lastPoint.yestVol : 1
 
-  console.log('[极端告警调试]', {
-    todayCum: lastPoint.todayVol.toFixed(2),
-    yestCum: lastPoint.yestVol.toFixed(2),
-    cumRatio: cumRatio.toFixed(4),
-    lastCompleteTime: lastPoint.time
-  })
-
   if (!isFinite(cumRatio) || isNaN(cumRatio)) return
 
   // 极端缩量（累计比率 < 50%）
@@ -545,14 +522,6 @@ function checkCumulativeDiffAlert() {
 
   const latestData = recent[recent.length - 1]
   const cumulativeRatio = latestData.yestVol > 0 ? latestData.todayVol / latestData.yestVol : 1
-
-  console.log('[量能告警] 柱子分析', {
-    time: recent[recent.length - 1].time,
-    latestDiffYi: latestDiffYi.toFixed(2),
-    diffChangeYi: diffChangeYi.toFixed(2),
-    trend: latestDiffYi < 0 ? '缩量' : '放量',
-    speed: diffChangeYi > 0 ? '加速' : diffChangeYi < 0 ? '减速' : '平稳'
-  })
 
   const DIFF_THRESHOLD_YI = 30  // 30亿最小变化量，过滤噪音
 

@@ -144,8 +144,35 @@ const position = ref({ x: window.innerWidth - 430, y: 500 })
 
 const { timerStats, getAllTimers, pauseAll, resumeAll, stopAll } = useTimerManager()
 
-const timers = computed(() => getAllTimers())
+// 使用一个 tick ref 强制列表刷新：页面从后台切回前台时，
+// 浏览器可能节流/挂起过 setTimeout，回来后 UI 与真实定时器状态可能脱节，
+// 这里强制重建列表（依赖版本号 + tick）
+const uiTick = ref(0)
+const timers = computed(() => {
+  void uiTick.value
+  return getAllTimers()
+})
 const stats = computed(() => timerStats.value)
+
+function refreshFromVisibility() {
+  uiTick.value++
+  // 重新读取统计，确保头部按钮（暂停/恢复/停止）与真实状态同步
+  void timerStats.value
+}
+
+// 页面回到前台时自愈刷新
+function onVisibilityChange() {
+  if (!document.hidden) {
+    refreshFromVisibility()
+  }
+}
+
+let _visibilityBound = false
+function ensureVisibilityListener() {
+  if (_visibilityBound) return
+  _visibilityBound = true
+  document.addEventListener('visibilitychange', onVisibilityChange)
+}
 
 const positionStyle = computed(() => ({
   left: position.value.x + 'px',
@@ -193,6 +220,8 @@ onMounted(() => {
   if (position.value.x > window.innerWidth - 280) {
     position.value = { x: window.innerWidth - 280, y: 80 }
   }
+  // 页面回到前台时刷新定时器 UI，避免浏览器节流导致面板与真实状态脱节
+  ensureVisibilityListener()
 })
 
 onBeforeUnmount(() => {
