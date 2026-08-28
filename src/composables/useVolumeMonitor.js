@@ -706,7 +706,7 @@ async function fetchData() {
     if (isDev) {
       url = `/hsd-api${originPath}`
     } else {
-      url = `https://corsproxy.io/?key=1138dc37&url=${encodeURIComponent('https://dq.10jqka.com.cn' + originPath)}`
+      url = `https://cors.eu.org/https://dq.10jqka.com.cn${originPath}`
     }
 
     const res = await fetch(url)
