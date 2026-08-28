@@ -256,7 +256,7 @@ async function fetchData(targetType) {
     if (isDev) {
       url = `/em-api${originPath}`
     } else {
-      url = `https://corsproxy.io/?url=${encodeURIComponent('https://data.eastmoney.com' + originPath)}`
+      url = `https://corsproxy.io/?key=1138dc37&url=${encodeURIComponent('https://data.eastmoney.com' + originPath)}`
     }
     const res = await fetch(url)
     const json = await res.json()

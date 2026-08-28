@@ -15,6 +15,7 @@ const MonitorTab = defineAsyncComponent(() => import('@/components/MonitorTab.vu
 const DividendTab = defineAsyncComponent(() => import('@/components/DividendTab.vue'))
 const SectorFundFlowTab = defineAsyncComponent(() => import('@/components/SectorFundFlowTab.vue'))
 const VolumeMonitorTab = defineAsyncComponent(() => import('@/components/VolumeMonitorTab.vue'))
+const IndustryMatrixTab = defineAsyncComponent(() => import('@/components/IndustryMatrixTab.vue'))
 
 import { ensureFields, calculateRow } from '@/js/utils.js'
 import { initVoices, testNotify, clearAllNotifications } from '@/js/notify.js'
@@ -48,7 +49,8 @@ const tabOptions = [
   { label: '指标监控', value: 'monitor' },
   { label: '红利股息监控', value: 'dividend' },
   { label: '板块资金流向', value: 'fundflow' },
-  { label: '量能监控', value: 'volume' }
+  { label: '量能监控', value: 'volume' },
+  { label: '行业强度矩阵', value: 'industryMatrix' }
 ]
 
 // Use monitor data composable (for import/export)
@@ -398,6 +400,9 @@ onMounted(() => {
 
           <!-- Volume Monitor Tab -->
           <VolumeMonitorTab v-if="activeTab === 'volume'" />
+
+          <!-- Industry Matrix Tab -->
+          <IndustryMatrixTab v-if="activeTab === 'industryMatrix'" />
         </template>
       </Tabs>
 
