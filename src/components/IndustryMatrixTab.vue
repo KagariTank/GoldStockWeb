@@ -158,7 +158,7 @@ function buildOption() {
           `5日收益：<span style="color:${d.value[0] >= 0 ? '#f56c6c' : '#67c23a'}">${d.value[0].toFixed(2)}%</span>`,
           `20日收益：<span style="color:${d.value[1] >= 0 ? '#f56c6c' : '#67c23a'}">${d.value[1].toFixed(2)}%</span>`,
           `60日收益：<span style="color:${d.chg60 >= 0 ? '#f56c6c' : '#67c23a'}">${d.chg60.toFixed(2)}%</span>`,
-          `今日成交额：${formatYi(d.value[2])}`,
+          `今日成交额：${formatYi(d.amount)}`,
           `主力净流入：${formatYi(d.mainInflow)}`
         ].join('<br/>')
       }
