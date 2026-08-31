@@ -24,6 +24,9 @@ import { useDividendData } from '@/composables/useDividendData.js'
 import { useTheme } from '@/composables/useTheme.js'
 import { useVoice } from '@/composables/useVoice.js'
 import { useEnv } from '@/composables/useEnv.js'
+// 副作用导入：仅触发模块顶层注册 industryMatrix 定时器（避免懒加载 Tab 首次挂载前
+// 面板中不显示该定时器）。数据拉取仍在 IndustryMatrixTab onMounted 中触发，行为不变。
+import '@/composables/useIndustryMatrix.js'
 
 // State
 const activeTab = ref('dashboard')

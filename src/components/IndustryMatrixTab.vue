@@ -143,6 +143,14 @@ function buildOption() {
     .map(p => p.name))
   const labelTop = new Set([...labelTopChg, ...labelTopAmt])
 
+  // 象限标签：计算坐标轴边界（与 axis min/max 逻辑一致）
+  const allX = points.map(p => p.value[0])
+  const allY = points.map(p => p.value[1])
+  const xBound = (allX.length ? Math.max(Math.abs(Math.min(...allX)), Math.abs(Math.max(...allX))) : 1) * 1.1
+  const yBound = (allY.length ? Math.max(Math.abs(Math.min(...allY)), Math.abs(Math.max(...allY))) : 1) * 1.1
+  const quadPos = (sx, sy) => [sx * xBound * 0.72, sy * yBound * 0.72]
+  const quadColor = isDarkMode ? '#525252' : '#c0c4cc'
+
   return {
     backgroundColor: 'transparent',
     tooltip: {
@@ -224,7 +232,7 @@ function buildOption() {
           label: { show: true, fontSize: 12, fontWeight: 600 }
         }
       },
-      // 四象限分割参考线（在 x=0、y=0 处加 markLine 体现）
+      // 四象限分割参考线 + 象限标签
       {
         type: 'scatter',
         data: [],
@@ -236,6 +244,17 @@ function buildOption() {
           data: [
             { xAxis: 0 },
             { yAxis: 0 }
+          ]
+        },
+        markPoint: {
+          silent: true,
+          symbol: 'rect',
+          symbolSize: 0,
+          data: [
+            { coord: quadPos(1, 1), label: { show: true, formatter: '主升浪\n短中期共振↑', color: quadColor, fontSize: 10, fontWeight: 500 } },
+            { coord: quadPos(-1, 1), label: { show: true, formatter: '回调中\n中期↑ 短期↓\n可能买点', color: quadColor, fontSize: 10, fontWeight: 500 } },
+            { coord: quadPos(1, -1), label: { show: true, formatter: '反弹中\n中期↓ 短期↑\n警惕假反弹', color: quadColor, fontSize: 10, fontWeight: 500 } },
+            { coord: quadPos(-1, -1), label: { show: true, formatter: '主跌浪\n短中期共振↓', color: quadColor, fontSize: 10, fontWeight: 500 } }
           ]
         }
       }

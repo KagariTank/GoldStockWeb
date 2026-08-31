@@ -210,7 +210,8 @@ function formatName(name) {
     monitor: '股价监控',
     volume: '量能检测',
     sector: '板块资金',
-    dividend: '股息监控'
+    dividend: '股息监控',
+    industryMatrix: '行业矩阵'
   }
   return map[name] || name
 }
