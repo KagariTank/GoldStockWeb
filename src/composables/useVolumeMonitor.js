@@ -245,8 +245,8 @@ function computeMinuteData(rawPoints) {
   if (!rawPoints || rawPoints.length === 0) return []
 
   const now = Date.now()
-  
-  // 先从 API 数据中提取所有有效点
+
+  // 用时间字符串(HH:MM)作为匹配 key，避免 API 时间戳与本地日期偏差导致匹配失败
   const apiDataMap = new Map()
   for (const point of rawPoints) {
     const [ts, turnover, turnoverPre, turnoverChange] = point
@@ -259,17 +259,24 @@ function computeMinuteData(rawPoints) {
       if (!isFinite(ratio) || isNaN(ratio)) ratio = 1
     }
 
-    apiDataMap.set(ts, { todayVol: turnover, yestVol: turnoverPre, turnoverChange: turnoverChange || 0, ratio })
+    const timeStr = formatTimeStr(ts)
+    apiDataMap.set(timeStr, { todayVol: turnover, yestVol: turnoverPre, turnoverChange: turnoverChange || 0, ratio })
   }
 
   // 如果 API 数据很少，直接返回 API 数据的时间轴，不做填充
   if (apiDataMap.size < 30) {
+    const nowDate = new Date()
+    const currentMinutes = nowDate.getHours() * 60 + nowDate.getMinutes()
     const result = []
-    for (const [ts, data] of apiDataMap) {
-      const isFuture = ts > now
+    for (const [timeStr, data] of apiDataMap) {
+      const [hh, mm] = timeStr.split(':').map(Number)
+      const dataMinutes = hh * 60 + mm
+      const isFuture = dataMinutes > currentMinutes
+      const ts = new Date(nowDate)
+      ts.setHours(hh, mm, 0, 0)
       result.push({
-        time: formatTimeStr(ts),
-        ts,
+        time: timeStr,
+        ts: ts.getTime(),
         todayVol: isFuture ? null : data.todayVol,
         yestVol: isFuture ? null : data.yestVol,
         turnoverChange: isFuture ? null : data.turnoverChange,
@@ -287,10 +294,10 @@ function computeMinuteData(rawPoints) {
   const fullDayTimestamps = generateFullDayTimestamps(today)
 
   const result = fullDayTimestamps.map(({ ts, timeStr }) => {
-    const data = apiDataMap.get(ts)
+    const data = apiDataMap.get(timeStr)  // 用时间字符串匹配，不受 API 时间戳日期偏差影响
     const isFuture = ts > now
     const hasData = !!data && !isFuture && isTradingTime(ts)
-    
+
     return {
       time: timeStr,
       ts,
@@ -302,7 +309,7 @@ function computeMinuteData(rawPoints) {
       hasData
     }
   })
-  
+
   return result
 }
 
