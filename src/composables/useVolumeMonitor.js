@@ -713,7 +713,8 @@ async function fetchData() {
     if (isDev) {
       url = `/hsd-api${originPath}`
     } else {
-      url = `https://cors.eu.org/https://dq.10jqka.com.cn${originPath}`
+      // 同花顺 dq 接口自带 CORS *，生产环境直连即可，无需代理
+      url = `https://dq.10jqka.com.cn${originPath}`
     }
 
     const res = await fetch(url)
