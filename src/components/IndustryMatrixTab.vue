@@ -54,7 +54,7 @@
           <span class="w-3 h-3 rounded-full inline-block border border-muted-foreground/50 bg-muted"></span>
           气泡大小 = 今日成交额
         </span>
-        <span class="text-xs text-muted-foreground">仅标注 涨幅前12 或 成交额前8</span>
+        <span class="text-xs text-muted-foreground">稀疏象限全标 + 右上成交额前12</span>
       </div>
 
       <!-- 图表容器（有数据才渲染，避免空坐标轴占位） -->
@@ -130,18 +130,28 @@ function buildOption() {
   const xZero = 0
   const yZero = 0
 
-  // 标注策略：5日涨幅前 12 名 或 成交额前 8 名（数量可控，避免标签重叠）
-  const labelTopChg = new Set(points
-    .slice()
-    .sort((a, b) => b.value[0] - a.value[0])
+  // 标注策略：稀疏象限全标注 + 密集象限 TopN + 成交额兜底
+  // 象限分布实测：右上 55 个（极密集）、左上 9 个、左下 9 个、右下 1 个
+  // 左上/左下/右下空间充裕 → 全部标注；右上按成交额取 TopN 作为候选，交给 hideOverlap 自动避让
+  const labelTop = new Set()
+  // 右上：成交额前 12 名（55 个板块最密集，控制候选数量避免重叠）
+  points
+    .filter(p => p.value[0] >= 0 && p.value[1] >= 0)
+    .sort((a, b) => b.value[2] - a.value[2])
     .slice(0, 12)
-    .map(p => p.name))
-  const labelTopAmt = new Set(points
+    .forEach(p => labelTop.add(p.name))
+  // 左上（5日<0 20日>0）：仅 9 个，全部标注
+  points.filter(p => p.value[0] < 0 && p.value[1] >= 0).forEach(p => labelTop.add(p.name))
+  // 左下（5日<0 20日<0）：仅 9 个，全部标注
+  points.filter(p => p.value[0] < 0 && p.value[1] < 0).forEach(p => labelTop.add(p.name))
+  // 右下（5日>0 20日<0）：仅 1 个，全部标注
+  points.filter(p => p.value[0] >= 0 && p.value[1] < 0).forEach(p => labelTop.add(p.name))
+  // 成交额前 8 名兜底（大板块必须显示，无论象限）
+  points
     .slice()
     .sort((a, b) => b.value[2] - a.value[2])
     .slice(0, 8)
-    .map(p => p.name))
-  const labelTop = new Set([...labelTopChg, ...labelTopAmt])
+    .forEach(p => labelTop.add(p.name))
 
   // 象限标签：计算坐标轴边界（与 axis min/max 逻辑一致）
   const allX = points.map(p => p.value[0])
@@ -214,22 +224,38 @@ function buildOption() {
           mainInflow: p.mainInflow,
           symbolSize: sizeOf(p.value[2]),
           itemStyle: {
-            color: p.chg60 >= 0 ? 'rgba(245, 108, 108, 0.55)' : 'rgba(103, 194, 58, 0.55)',
+            color: p.chg60 >= 0 ? 'rgba(245, 108, 108, 0.5)' : 'rgba(103, 194, 58, 0.5)',
             borderColor: p.chg60 >= 0 ? '#f56c6c' : '#67c23a',
-            borderWidth: 1
+            borderWidth: 1.5
           },
           label: {
             show: labelTop.has(p.name),
             formatter: p.name,
             fontSize: 10,
             color: p.chg60 >= 0 ? '#f56c6c' : '#67c23a',
-            position: 'top'
+            // 右下象限（5日>0 20日<0，通常只有半导体）标签放右侧，避免被右上密集区遮挡
+            position: (p.value[0] >= 0 && p.value[1] < 0) ? 'right' : 'top'
           }
         })),
-        labelLayout: { hideOverlap: true },
+        // 标签避让：先沿 Y 轴移动避免重叠，仍重叠的再隐藏（比纯 hideOverlap 多保留标签）
+        labelLayout: {
+          hideOverlap: true,
+          moveOverlap: 'shiftY'
+        },
         emphasis: {
-          focus: 'series',
-          label: { show: true, fontSize: 12, fontWeight: 600 }
+          focus: 'self',
+          scale: true,
+          scaleSize: 1.5,
+          label: { show: true, fontSize: 13, fontWeight: 700 },
+          itemStyle: {
+            borderWidth: 2,
+            borderColor: '#f59e0b',
+            shadowBlur: 8,
+            shadowColor: 'rgba(0, 0, 0, 0.35)'
+          }
+        },
+        blur: {
+          itemStyle: { opacity: 0.12 }
         }
       },
       // 四象限分割参考线 + 象限标签

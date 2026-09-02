@@ -6,7 +6,7 @@ import { createAutoRefreshTimer } from './useTimerManager.js'
 // 字段约定（基点 = 实际% × 100）：
 //   f12 板块代码、f14 板块名称
 //   f109 5日涨跌幅、f160 20日涨跌幅、f24 60日涨跌幅
-//   f20 成交额（元）、f3 当日涨跌幅、f62 主力净流入（元）
+//   f20 成交额（分，需 /100 换算为元）、f3 当日涨跌幅、f62 主力净流入（元）
 
 const matrixData = ref([])        // 归一化后的板块列表
 const loading = ref(false)
@@ -110,7 +110,7 @@ async function fetchMatrixData() {
       chg20: (Number(r.f160) || 0) / 100,      // 20日涨幅 %
       chg60: (Number(r.f24) || 0) / 100,       // 60日涨幅 %
       chgToday: (Number(r.f3) || 0) / 100,     // 当日涨幅 %
-      amount: Number(r.f20) || 0,              // 成交额（元）
+      amount: (Number(r.f20) || 0) / 100,        // 成交额（f20 单位为分，换算为元）
       mainInflow: Number(r.f62) || 0           // 主力净流入
     }))
     breadth.value = calcBreadth(valid)
