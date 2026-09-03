@@ -15,6 +15,9 @@ const loading = ref(false)
 const _prevSealMap = new Map()  // { code: { buy1Vol, sell1Vol } }
 const _sealHistoryMap = new Map()  // { code: [{ time, buy1Vol, sell1Vol }, ...] }
 const _SEAL_HISTORY_MAX = 30  // 保存最近30条记录（约15分钟）
+// 封单告警冷却：同票 15 分钟内只提醒一次，防止 level 波动反复弹
+const _SEAL_ALERT_COOLDOWN = 15 * 60 * 1000  // 15 分钟
+const _lastSealAlertMap = new Map()  // { code: timestamp }
 
 // Auto refresh - 使用统一定时器管理
 const _monitorTimer = createAutoRefreshTimer('monitor', {
@@ -374,22 +377,35 @@ const checkSealAlerts = () => {
       levelLabel: levelLabel
     }
 
-    // 高危触发告警
-    if (level === 3) {
-      const dangerMsg = [
-        `当前股价: ${currPrice}`,
-        `${limitType}封单金额: ${formatMoney(sealAmount)}`,
-        `封单占比: ${sealPct.toFixed(2)}%（危险阈值${threshold.danger}%）`,
-        `趋势: ${trendDesc}`,
-      ]
-      
-      fireNotify(
-        '🔴 封单高危',
-        `${name}(${code}) ${levelLabel}，${dangerMsg.join(' | ')}`,
-        2,
-        isFileProtocol.value,
-        selectedVoice
-      )
+    // 高危触发告警（level 1/2 提前预警，3 高危；冷却防刷屏）
+    if (level >= 1) {
+      const nowTs = Date.now()
+      const lastAlertTs = _lastSealAlertMap.get(code) || 0
+      if (nowTs - lastAlertTs >= _SEAL_ALERT_COOLDOWN) {
+        _lastSealAlertMap.set(code, nowTs)
+
+        const sealInfo = [
+          `当前股价: ${currPrice}`,
+          `${limitType}封单金额: ${formatMoney(sealAmount)}`,
+          `封单占比: ${sealPct.toFixed(2)}%（安全阈值${threshold.safe}%）`,
+          `趋势: ${trendDesc}`,
+        ]
+
+        // 分级标题与文案
+        let title, body
+        if (level === 3) {
+          title = '🔴 封单高危'
+          body = `${name}(${code}) ${levelLabel}，${sealInfo.join(' | ')}`
+        } else if (level === 2) {
+          title = '🟠 封单警惕'
+          body = `${name}(${code}) ${levelLabel}，${sealInfo.join(' | ')}`
+        } else {
+          title = '🟡 封单预警'
+          body = `${name}(${code}) ${levelLabel}，${sealInfo.join(' | ')}`
+        }
+
+        fireNotify(title, body, level >= 3 ? 2 : 1, isFileProtocol.value, selectedVoice)
+      }
     }
 
     _prevSealMap.set(code, { sealAmount: sealAmount })
