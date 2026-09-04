@@ -24,6 +24,11 @@ export default defineConfig({
         target: 'https://dq.10jqka.com.cn',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/hsd-api/, '')
+      },
+      '/em-ex-api': {
+        target: 'https://push2ex.eastmoney.com',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/em-ex-api/, '')
       }
     }
   }

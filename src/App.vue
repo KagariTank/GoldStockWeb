@@ -16,6 +16,8 @@ const DividendTab = defineAsyncComponent(() => import('@/components/DividendTab.
 const SectorFundFlowTab = defineAsyncComponent(() => import('@/components/SectorFundFlowTab.vue'))
 const VolumeMonitorTab = defineAsyncComponent(() => import('@/components/VolumeMonitorTab.vue'))
 const IndustryMatrixTab = defineAsyncComponent(() => import('@/components/IndustryMatrixTab.vue'))
+const LimitDownTab = defineAsyncComponent(() => import('@/components/LimitDownTab.vue'))
+const LofArbitrageTab = defineAsyncComponent(() => import('@/components/LofArbitrageTab.vue'))
 
 import { ensureFields, calculateRow } from '@/js/utils.js'
 import { initVoices, testNotify, clearAllNotifications } from '@/js/notify.js'
@@ -27,6 +29,9 @@ import { useEnv } from '@/composables/useEnv.js'
 // 副作用导入：仅触发模块顶层注册 industryMatrix 定时器（避免懒加载 Tab 首次挂载前
 // 面板中不显示该定时器）。数据拉取仍在 IndustryMatrixTab onMounted 中触发，行为不变。
 import '@/composables/useIndustryMatrix.js'
+// 副作用导入：注册 limitDown 定时器（同上，懒加载 Tab 需要面板立即可见）
+import '@/composables/useLimitDownData.js'
+import '@/composables/useLofArbitrageData.js'
 
 // State
 const activeTab = ref('dashboard')
@@ -53,7 +58,9 @@ const tabOptions = [
   { label: '红利股息监控', value: 'dividend' },
   { label: '板块资金流向', value: 'fundflow' },
   { label: '量能监控', value: 'volume' },
-  { label: '行业强度矩阵', value: 'industryMatrix' }
+  { label: '行业强度矩阵', value: 'industryMatrix' },
+  { label: '跌停板监控', value: 'limitDown' },
+  { label: 'LOF套利监控', value: 'lofArbitrage' }
 ]
 
 // Use monitor data composable (for import/export)
@@ -406,6 +413,9 @@ onMounted(() => {
 
           <!-- Industry Matrix Tab -->
           <IndustryMatrixTab v-if="activeTab === 'industryMatrix'" />
+
+          <!-- Limit Down Tab -->
+          <LimitDownTab v-if="activeTab === 'limitDown'" />
         </template>
       </Tabs>
 

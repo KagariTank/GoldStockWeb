@@ -211,7 +211,8 @@ function formatName(name) {
     volume: '量能检测',
     sector: '板块资金',
     dividend: '股息监控',
-    industryMatrix: '行业矩阵'
+    industryMatrix: '行业矩阵',
+    limitDown: '跌停监控'
   }
   return map[name] || name
 }
