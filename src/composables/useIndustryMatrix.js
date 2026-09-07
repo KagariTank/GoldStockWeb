@@ -26,6 +26,11 @@ const FIELDS = 'f12,f14,f109,f160,f24,f20,f3,f62,f2'
 // 东财板块 fs 参数（行业板块）
 const BOARD_FS = 'm:90+t:2'
 
+// push2delay clist 接口（东财延迟行情子域，CORS 全开，浏览器可直连）
+// 注：push2.eastmoney.com 对部分 IP 有间歇性风控（empty reply），push2delay 为备用子域实测稳定
+const PUSH2_CLIST_URL = 'https://push2delay.eastmoney.com/api/qt/clist/get'
+const MAX_RETRIES = 3
+
 // 自动刷新定时器（30s，走统一管理）
 const _matrixTimer = createAutoRefreshTimer('industryMatrix', {
   onRefresh: () => {
@@ -39,13 +44,42 @@ const _matrixTimer = createAutoRefreshTimer('industryMatrix', {
 const autoRefresh = _matrixTimer.isActive
 const countdown = _matrixTimer.countdown
 
-// 东财行情接口（dev 走 vite 代理 /em-api，生产走 cors.eu.org 免费 CORS 代理）
-// 注：proxy.cors.sh 于 2026-09-07 已 DNS 失效（ERR_NAME_NOT_RESOLVED），切回 cors.eu.org
-function buildUrl() {
-  const isDev = import.meta.env.DEV
-  const originPath = `/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(BOARD_FS)}&_t=${Date.now()}`
-  if (isDev) return `/em-api${originPath}`
-  return `https://cors.eu.org/https://data.eastmoney.com${originPath}`
+// 东财行情接口（dev 走 vite 代理 /em-api，生产直连 push2delay clist）
+// 注：proxy.cors.sh / cors.eu.org 已失效；push2delay 为 push2 备用子域，CORS 全开可直连
+// push2delay 单页上限 100 条，需翻页拉满 total（行业 496）
+async function fetchAllPages(boardFs) {
+  const all = []
+  let lastErr
+  let total = Infinity
+  for (let pn = 1; all.length < total; pn++) {
+    const params = new URLSearchParams({
+      pn: String(pn), pz: '100', po: '1', np: '1',
+      fltt: '2', invt: '2', fid: 'f3',
+      fs: boardFs,
+      fields: FIELDS,
+      _: String(Date.now())
+    })
+    const url = `${PUSH2_CLIST_URL}?${params.toString()}`
+    let pageData = null
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        if (data && data.data && data.data.diff) { pageData = data; break }
+        throw new Error('empty data')
+      } catch (e) {
+        lastErr = e
+        if (attempt < MAX_RETRIES - 1) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+      }
+    }
+    if (!pageData) throw lastErr || new Error('push2delay clist 全部重试失败')
+    total = pageData.data.total || all.length
+    const diff = pageData.data.diff || []
+    all.push(...diff)
+    if (diff.length < 100) break  // 不足一页，已到末页
+  }
+  return all
 }
 
 // 行业板块筛选：东财行业接口（m:90+t:2）返回全量 496 个，含三级细分（BK12~BK16 段 400+ 个）。
@@ -98,9 +132,16 @@ async function fetchMatrixData() {
   loading.value = true
   error.value = ''
   try {
-    const res = await fetch(buildUrl())
-    const json = await res.json()
-    const diff = json?.data?.diff || []
+    const isDev = import.meta.env.DEV
+    let diff
+    if (isDev) {
+      const originPath = `/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(BOARD_FS)}&_t=${Date.now()}`
+      const res = await fetch(`/em-api${originPath}`)
+      const json = await res.json()
+      diff = json?.data?.diff || []
+    } else {
+      diff = await fetchAllPages(BOARD_FS)
+    }
     const rows = filterIndustryBoards(diff)
     // 仅保留有有效 5日/20日涨幅的数据
     const valid = rows.filter(r => r.f109 !== undefined && r.f160 !== undefined)

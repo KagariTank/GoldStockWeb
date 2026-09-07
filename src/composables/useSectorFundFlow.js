@@ -98,14 +98,19 @@ const _alertInitializedByType = { industry: false, concept: false } // 告警基
 const _alertCooldown = {} // { `${code}_${type}`: timestamp }
 const COOLDOWN_MS = 5 * 60 * 1000 // 5 分钟冷却
 
-// 板块类型 -> 东方财富 code 参数映射
+// 板块类型 -> 东方财富 clist fs 参数映射
 const sectorCodeMap = {
   industry: 'm:90+s:4',
   concept: 'm:90+s:3'
 }
 
-// 请求的字段
+// 请求的字段（push2 clist 格式）
 const FIELDS = 'f3,f12,f14,f62,f184,f66,f78,f128,f140'
+
+// push2delay clist 接口（东财延迟行情子域，CORS 全开，浏览器可直连）
+// 注：push2.eastmoney.com 对部分 IP 有间歇性风控（empty reply），push2delay 为备用子域实测稳定
+const PUSH2_CLIST_URL = 'https://push2delay.eastmoney.com/api/qt/clist/get'
+const MAX_RETRIES = 3
 
 // ===== 告警阈值 =====
 const THRESHOLDS = {
@@ -248,19 +253,53 @@ async function fetchData(targetType) {
   loading.value = true
   try {
     const code = sectorCodeMap[type] || sectorCodeMap.industry
-    // dev 环境走 vite 代理避免 CORS，生产环境走 cors.eu.org 免费 CORS 代理
-    // 注：proxy.cors.sh 于 2026-09-07 已 DNS 失效（ERR_NAME_NOT_RESOLVED），切回 cors.eu.org
     const isDev = import.meta.env.DEV
-    // 加时间戳防止浏览器缓存 GET 请求
-    const originPath = `/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(code)}&_t=${Date.now()}`
-    let url
+
+    // dev 环境走 vite 代理 /em-api（代理到 data.eastmoney.com）
+    // 生产环境直连 push2 clist（CORS 全开，无需代理）
+    // 注：push2 有间歇性风控（empty reply），加 3 次重试
+    let json
     if (isDev) {
-      url = `/em-api${originPath}`
+      // dev 走 vite 代理（dataapi 格式）
+      const originPath = `/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(code)}&_t=${Date.now()}`
+      const url = `/em-api${originPath}`
+      const res = await fetch(url)
+      json = await res.json()
     } else {
-      url = `https://cors.eu.org/https://data.eastmoney.com${originPath}`
+      // 生产直连 push2delay clist，参数从 dataapi 格式转换为 clist 格式
+      // 注：push2delay 单页上限 100 条，需翻页拉满 total（行业 128 / 概念 495）
+      const all = []
+      let lastErr
+      let total = Infinity
+      for (let pn = 1; all.length < total; pn++) {
+        const params = new URLSearchParams({
+          pn: String(pn), pz: '100', po: '1', np: '1',
+          fltt: '2', invt: '2', fid: 'f62',
+          fs: code,
+          fields: FIELDS,
+          _: String(Date.now())
+        })
+        let pageData = null
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+          try {
+            const res = await fetch(`${PUSH2_CLIST_URL}?${params.toString()}`)
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            const data = await res.json()
+            if (data && data.data && data.data.diff) { pageData = data; break }
+            throw new Error('empty data')
+          } catch (e) {
+            lastErr = e
+            if (attempt < MAX_RETRIES - 1) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+          }
+        }
+        if (!pageData) throw lastErr || new Error('push2delay clist 全部重试失败')
+        total = pageData.data.total || all.length
+        const diff = pageData.data.diff || []
+        all.push(...diff)
+        if (diff.length < 100) break  // 不足一页，已到末页
+      }
+      json = { data: { diff: all } }
     }
-    const res = await fetch(url)
-    const json = await res.json()
     const diff = json?.data?.diff || []
     // 仅当前选中类型才更新 tableData（汇总信息），避免 Dashboard 预拉取其他类型时污染
     if (type === sectorType.value) {
