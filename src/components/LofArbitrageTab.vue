@@ -100,7 +100,14 @@
               <span class="text-muted-foreground text-sm">{{ index + 1 }}</span>
             </TableCell>
             <TableCell>
-              <span class="font-medium">{{ row.name }}</span>
+              <a
+                :href="xueqiuUrl(row.code)"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-medium text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+              >
+                {{ row.name }}
+              </a>
             </TableCell>
             <TableCell>
               <span class="text-muted-foreground font-mono text-sm">{{ row.code }}</span>
@@ -226,6 +233,12 @@ const SortableHeader = {
       )
     }
   }
+}
+
+// 雪球跳转链接：16 开头 → SZ，50 开头 → SH
+function xueqiuUrl(code) {
+  const prefix = code.startsWith('16') ? 'SZ' : 'SH'
+  return `https://xueqiu.com/S/${prefix}${code}`
 }
 
 // 折溢价率样式
