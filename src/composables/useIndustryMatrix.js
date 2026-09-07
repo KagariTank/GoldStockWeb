@@ -39,12 +39,13 @@ const _matrixTimer = createAutoRefreshTimer('industryMatrix', {
 const autoRefresh = _matrixTimer.isActive
 const countdown = _matrixTimer.countdown
 
-// 东财行情接口（dev 走 vite 代理 /em-api，生产走 proxy.cors.sh 免费 CORS 代理）
+// 东财行情接口（dev 走 vite 代理 /em-api，生产走 cors.eu.org 免费 CORS 代理）
+// 注：proxy.cors.sh 于 2026-09-07 已 DNS 失效（ERR_NAME_NOT_RESOLVED），切回 cors.eu.org
 function buildUrl() {
   const isDev = import.meta.env.DEV
   const originPath = `/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(BOARD_FS)}&_t=${Date.now()}`
   if (isDev) return `/em-api${originPath}`
-  return `https://proxy.cors.sh/https://data.eastmoney.com${originPath}`
+  return `https://cors.eu.org/https://data.eastmoney.com${originPath}`
 }
 
 // 行业板块筛选：东财行业接口（m:90+t:2）返回全量 496 个，含三级细分（BK12~BK16 段 400+ 个）。

@@ -248,7 +248,8 @@ async function fetchData(targetType) {
   loading.value = true
   try {
     const code = sectorCodeMap[type] || sectorCodeMap.industry
-    // dev 环境走 vite 代理避免 CORS，生产环境走 proxy.cors.sh 免费 CORS 代理
+    // dev 环境走 vite 代理避免 CORS，生产环境走 cors.eu.org 免费 CORS 代理
+    // 注：proxy.cors.sh 于 2026-09-07 已 DNS 失效（ERR_NAME_NOT_RESOLVED），切回 cors.eu.org
     const isDev = import.meta.env.DEV
     // 加时间戳防止浏览器缓存 GET 请求
     const originPath = `/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(code)}&_t=${Date.now()}`
@@ -256,7 +257,7 @@ async function fetchData(targetType) {
     if (isDev) {
       url = `/em-api${originPath}`
     } else {
-      url = `https://proxy.cors.sh/https://data.eastmoney.com${originPath}`
+      url = `https://cors.eu.org/https://data.eastmoney.com${originPath}`
     }
     const res = await fetch(url)
     const json = await res.json()

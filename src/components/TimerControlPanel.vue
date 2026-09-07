@@ -212,7 +212,8 @@ function formatName(name) {
     sector: '板块资金',
     dividend: '股息监控',
     industryMatrix: '行业矩阵',
-    limitDown: '跌停监控'
+    limitDown: '跌停监控',
+    lofArbitrage: 'LOF套利'
   }
   return map[name] || name
 }

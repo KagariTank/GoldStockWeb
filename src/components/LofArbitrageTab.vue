@@ -61,23 +61,35 @@
 
     <!-- LOF 表格 -->
     <div class="border rounded-lg overflow-auto flex-1">
-      <Table :data="tableData" :loading="loading">
+      <Table :data="sortedData" :loading="loading">
         <TableHeader>
           <TableRow>
             <TableHead label="#" class="w-[50px]" />
-            <TableHead label="名称" class="min-w-[120px]" />
+            <TableHead class="min-w-[120px]">
+              <SortableHeader label="名称" sort-key="name" :current="sortKey" :order="sortOrder" @sort="onSort" />
+            </TableHead>
             <TableHead label="代码" class="w-[90px]" />
-            <TableHead label="现价" class="w-[80px]" />
-            <TableHead label="涨跌幅" class="w-[90px]" />
-            <TableHead label="基金净值" class="w-[90px]" />
-            <TableHead label="折溢价率" class="w-[100px]" />
-            <TableHead label="价-净值" class="w-[90px]" />
+            <TableHead class="w-[80px]">
+              <SortableHeader label="现价" sort-key="price" :current="sortKey" :order="sortOrder" @sort="onSort" />
+            </TableHead>
+            <TableHead class="w-[90px]">
+              <SortableHeader label="涨跌幅" sort-key="changePct" :current="sortKey" :order="sortOrder" @sort="onSort" />
+            </TableHead>
+            <TableHead class="w-[90px]">
+              <SortableHeader label="基金净值" sort-key="nav" :current="sortKey" :order="sortOrder" @sort="onSort" />
+            </TableHead>
+            <TableHead class="w-[100px]">
+              <SortableHeader label="折溢价率" sort-key="premiumRate" :current="sortKey" :order="sortOrder" @sort="onSort" />
+            </TableHead>
+            <TableHead class="w-[90px]">
+              <SortableHeader label="价-净值" sort-key="navDiff" :current="sortKey" :order="sortOrder" @sort="onSort" />
+            </TableHead>
             <TableHead label="套利方向" class="w-[100px]" />
           </TableRow>
         </TableHeader>
         <TableBody>
           <TableRow
-            v-for="(row, index) in tableData"
+            v-for="(row, index) in sortedData"
             :key="row.code"
             :class="{
               'bg-red-50/50': row.premiumRate > 3,
@@ -141,7 +153,7 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { ref, computed, h, onMounted } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/Table'
 import { useLofArbitrageData } from '@/composables/useLofArbitrageData.js'
@@ -159,6 +171,62 @@ const {
   fetchLofData,
   toggleAutoRefresh
 } = useLofArbitrageData()
+
+// ===== 表格排序 =====
+const sortKey = ref('premiumRate')
+const sortOrder = ref('desc') // asc | desc
+
+function onSort(key) {
+  if (sortKey.value === key) {
+    sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc'
+  } else {
+    sortKey.value = key
+    sortOrder.value = 'desc'
+  }
+}
+
+// 排序后的数据
+const sortedData = computed(() => {
+  const data = [...tableData.value]
+  const key = sortKey.value
+  const order = sortOrder.value === 'desc' ? -1 : 1
+  return data.sort((a, b) => {
+    let va = a[key]
+    let vb = b[key]
+    // name 是字符串
+    if (typeof va === 'string') {
+      return va.localeCompare(vb, 'zh') * order
+    }
+    va = parseFloat(va) || 0
+    vb = parseFloat(vb) || 0
+    return (va - vb) * order
+  })
+})
+
+// 可排序表头组件（与 SectorFundFlowTab 同款）
+const SortableHeader = {
+  props: {
+    label: String,
+    sortKey: String,
+    current: String,
+    order: String
+  },
+  emits: ['sort'],
+  setup(props, { emit }) {
+    return () => {
+      const isActive = props.current === props.sortKey
+      const arrow = isActive ? (props.order === 'desc' ? ' ↓' : ' ↑') : ''
+      return h(
+        'span',
+        {
+          class: ['cursor-pointer select-none hover:text-foreground transition-colors', isActive ? 'text-foreground font-semibold' : ''],
+          onClick: () => emit('sort', props.sortKey)
+        },
+        props.label + arrow
+      )
+    }
+  }
+}
 
 // 折溢价率样式
 function premiumClass(rate) {

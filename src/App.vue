@@ -416,6 +416,9 @@ onMounted(() => {
 
           <!-- Limit Down Tab -->
           <LimitDownTab v-if="activeTab === 'limitDown'" />
+
+          <!-- LOF Arbitrage Tab -->
+          <LofArbitrageTab v-if="activeTab === 'lofArbitrage'" />
         </template>
       </Tabs>
 
