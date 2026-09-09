@@ -9,7 +9,9 @@ import { createAutoRefreshTimer } from './useTimerManager.js'
 // 腾讯 JSONP 字段索引（~分隔，88字段）：
 //   [1] 名称  [2] 代码  [3] 现价  [4] 昨收
 //   [30] 时间  [33] 涨跌幅%
-//   [61] 类型(LOF)  [63] 折溢价率%  [81] 基金净值
+//   [61] 类型(LOF)  [77] 折溢价率%  [81] 基金净值
+//   - [77] 为腾讯权威折溢价率字段，经验证 = (现价 - 单位净值)/单位净值×100%，398/398 全量精确匹配
+//   - 注意：[62]/[63] 不是折溢价率（易混淆），切勿使用
 //
 // LOF 代码列表：内置（腾讯行情接口权威确认的 LOF 品种快照，2026-09）
 //   - 16xxxx → sz，50xxxx → sh
@@ -109,7 +111,7 @@ async function fetchBatchQuotes() {
       const code = parts[2]
       const price = parseFloat(parts[3]) || 0
       const nav = parseFloat(parts[81]) || 0
-      const premium = parseFloat(parts[63]) || 0
+      const premium = parseFloat(parts[77]) || 0
 
       // 过滤异常：现价<=0 或 现价=1.0（疑似停牌/转型/未上市）
       if (price <= 0 || price === 1.0) continue
