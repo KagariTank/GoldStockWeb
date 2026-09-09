@@ -20,15 +20,7 @@
       >
         {{ autoRefresh ? `自动刷新 ${countdown}s` : '30s自动刷新' }}
       </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        :loading="purchaseLoading"
-        :disabled="loading || sortedData.length === 0"
-        @click="fetchAllPurchaseStatus"
-      >
-        获取申购状态
-      </Button>
+
     </div>
 
     <!-- 错误提示 -->
@@ -161,7 +153,14 @@
               >
                 {{ row.purchaseStatus }}
               </span>
-              <span v-else class="text-xs text-muted-foreground">—</span>
+              <button
+                v-else
+                class="text-xs text-blue-500 hover:text-blue-700 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="rowPurchaseLoading[row.code]"
+                @click="fetchRowPurchaseStatus(row.code)"
+              >
+                {{ rowPurchaseLoading[row.code] ? '查询中...' : '查询' }}
+              </button>
             </TableCell>
             <TableCell>
               <span
@@ -196,9 +195,9 @@ const {
   autoRefresh,
   countdown,
   stats,
-  purchaseLoading,
+  rowPurchaseLoading,
   fetchLofData,
-  fetchAllPurchaseStatus,
+  fetchRowPurchaseStatus,
   toggleAutoRefresh
 } = useLofArbitrageData()
 

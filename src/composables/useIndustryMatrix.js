@@ -132,16 +132,7 @@ async function fetchMatrixData() {
   loading.value = true
   error.value = ''
   try {
-    const isDev = import.meta.env.DEV
-    let diff
-    if (isDev) {
-      const originPath = `/dataapi/bkzj/getbkzj?key=${FIELDS}&code=${encodeURIComponent(BOARD_FS)}&_t=${Date.now()}`
-      const res = await fetch(`/em-api${originPath}`)
-      const json = await res.json()
-      diff = json?.data?.diff || []
-    } else {
-      diff = await fetchAllPages(BOARD_FS)
-    }
+    const diff = await fetchAllPages(BOARD_FS)
     const rows = filterIndustryBoards(diff)
     // 仅保留有有效 5日/20日涨幅的数据
     const valid = rows.filter(r => r.f109 !== undefined && r.f160 !== undefined)

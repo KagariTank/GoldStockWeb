@@ -69,7 +69,8 @@ const tableData = ref([])      // LOF 列表（已按折溢价率绝对值降序
 const loading = ref(false)
 const lastUpdate = ref('')
 const error = ref('')
-const purchaseLoading = ref(false)  // 申购状态获取中
+// 按行 loading 状态：code -> boolean
+const rowPurchaseLoading = ref({})
 
 // ===== GBK 解码 =====
 // 浏览器端使用 TextDecoder('gbk') 解码腾讯返回的 GBK 数据
@@ -156,32 +157,28 @@ async function fetchPurchaseStatus(code) {
   }
 }
 
-// 批量获取当前表格中已展示的 LOF 申购状态（并发 8，避免请求过快被限）
-async function fetchAllPurchaseStatus() {
-  if (purchaseLoading.value) return
-  purchaseLoading.value = true
+// 单行获取申购状态
+async function fetchRowPurchaseStatus(code) {
+  if (rowPurchaseLoading.value[code]) return
+  rowPurchaseLoading.value = { ...rowPurchaseLoading.value, [code]: true }
   try {
-    const rows = tableData.value
-    const concurrency = 8
-    for (let i = 0; i < rows.length; i += concurrency) {
-      const batch = rows.slice(i, i + concurrency)
-      await Promise.all(batch.map(async (row) => {
-        try {
-          const info = await fetchPurchaseStatus(row.code)
-          row.purchaseStatus = info.purchaseStatus
-          row.purchaseNote = info.purchaseNote
-          row.redeemStatus = info.redeemStatus
-        } catch {
-          row.purchaseStatus = '获取失败'
-          row.purchaseNote = ''
-          row.redeemStatus = ''
-        }
-      }))
-      // 触发响应式更新
+    const row = tableData.value.find(r => r.code === code)
+    if (!row) return
+    const info = await fetchPurchaseStatus(code)
+    row.purchaseStatus = info.purchaseStatus
+    row.purchaseNote = info.purchaseNote
+    row.redeemStatus = info.redeemStatus
+    tableData.value = [...tableData.value]
+  } catch {
+    const row = tableData.value.find(r => r.code === code)
+    if (row) {
+      row.purchaseStatus = '获取失败'
+      row.purchaseNote = ''
+      row.redeemStatus = ''
       tableData.value = [...tableData.value]
     }
   } finally {
-    purchaseLoading.value = false
+    rowPurchaseLoading.value = { ...rowPurchaseLoading.value, [code]: false }
   }
 }
 
@@ -254,9 +251,9 @@ export function useLofArbitrageData() {
     autoRefresh,
     countdown,
     stats,
-    purchaseLoading,
+    rowPurchaseLoading,
     fetchLofData,
-    fetchAllPurchaseStatus,
+    fetchRowPurchaseStatus,
     toggleAutoRefresh
   }
 }

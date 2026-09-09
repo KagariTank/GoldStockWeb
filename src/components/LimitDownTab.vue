@@ -83,10 +83,24 @@
               <span class="text-muted-foreground text-sm">{{ index + 1 }}</span>
             </TableCell>
             <TableCell>
-              <span class="font-medium">{{ row.name }}</span>
+              <a
+                :href="stockUrl(row.code)"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="font-medium text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+              >
+                {{ row.name }}
+              </a>
             </TableCell>
             <TableCell>
-              <span class="text-muted-foreground font-mono text-sm">{{ row.code }}</span>
+              <a
+                :href="stockUrl(row.code)"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-muted-foreground font-mono text-sm hover:text-blue-600 hover:underline cursor-pointer"
+              >
+                {{ row.code }}
+              </a>
             </TableCell>
             <TableCell>
               <span class="font-mono">{{ row.price.toFixed(2) }}</span>
@@ -152,6 +166,12 @@ const {
 function formatYi(val) {
   if (val === null || val === undefined || isNaN(val)) return '-'
   return (val / 1e8).toFixed(2) + '亿'
+}
+
+// 股票跳转链接：6 开头 → SH，0/3 开头 → SZ
+function stockUrl(code) {
+  const prefix = code.startsWith('6') ? 'SH' : 'SZ'
+  return `https://xueqiu.com/S/${prefix}${code}`
 }
 
 onMounted(() => {
