@@ -69,6 +69,7 @@ const tableData = ref([])      // LOF 列表（已按折溢价率绝对值降序
 const loading = ref(false)
 const lastUpdate = ref('')
 const error = ref('')
+const purchaseLoading = ref(false)  // 申购状态获取中
 
 // ===== GBK 解码 =====
 // 浏览器端使用 TextDecoder('gbk') 解码腾讯返回的 GBK 数据
@@ -134,6 +135,54 @@ async function fetchBatchQuotes() {
   }
 
   return results
+}
+
+// ===== 申购状态获取（东财天天基金接口，逐只查询） =====
+// 接口：fundmobapi.eastmoney.com/FundMNewApi/FundMNBasicInformation
+//   - CORS * 全开，浏览器端可直接请求
+//   - 只支持逐只查询（批量接口 61136 不可用），故按按钮触发，不对全量轮询
+//   - 返回字段：SGZT(申购状态) SGZTMARK(备注) SHZT(赎回状态) MAXSG(申购限额)
+const EM_FUND_INFO = 'https://fundmobapi.eastmoney.com/FundMNewApi/FundMNBasicInformation'
+
+async function fetchPurchaseStatus(code) {
+  const url = `${EM_FUND_INFO}?FCODE=${code}&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0`
+  const res = await fetch(url)
+  const json = await res.json()
+  const d = json.Datas || {}
+  return {
+    purchaseStatus: d.SGZT || '',   // 无限制 / 限制大额申购 / 暂停申购
+    purchaseNote: d.SGZTMARK || '', // 备注说明
+    redeemStatus: d.SHZT || '',    // 赎回状态
+  }
+}
+
+// 批量获取当前表格中已展示的 LOF 申购状态（并发 8，避免请求过快被限）
+async function fetchAllPurchaseStatus() {
+  if (purchaseLoading.value) return
+  purchaseLoading.value = true
+  try {
+    const rows = tableData.value
+    const concurrency = 8
+    for (let i = 0; i < rows.length; i += concurrency) {
+      const batch = rows.slice(i, i + concurrency)
+      await Promise.all(batch.map(async (row) => {
+        try {
+          const info = await fetchPurchaseStatus(row.code)
+          row.purchaseStatus = info.purchaseStatus
+          row.purchaseNote = info.purchaseNote
+          row.redeemStatus = info.redeemStatus
+        } catch {
+          row.purchaseStatus = '获取失败'
+          row.purchaseNote = ''
+          row.redeemStatus = ''
+        }
+      }))
+      // 触发响应式更新
+      tableData.value = [...tableData.value]
+    }
+  } finally {
+    purchaseLoading.value = false
+  }
 }
 
 // ===== 自动刷新定时器（30s，走统一管理） =====
@@ -205,7 +254,9 @@ export function useLofArbitrageData() {
     autoRefresh,
     countdown,
     stats,
+    purchaseLoading,
     fetchLofData,
+    fetchAllPurchaseStatus,
     toggleAutoRefresh
   }
 }
