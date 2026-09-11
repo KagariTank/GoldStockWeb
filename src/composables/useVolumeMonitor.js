@@ -821,15 +821,13 @@ const trendIcon = computed(() => {
   return '➡️'
 })
 
+// 累计差额（今日-昨日，单位元 → 转亿元）
+// 直接用同花顺 header.turnover_change（权威值，已含全部已完成分钟点），
+// 不再累加各分钟点的 turnoverChange，避免历史差值重复叠加导致数值虚高（×100 量级）
 const cumulativeDiff = computed(() => {
-  const data = minuteData.value
-  const validData = data.filter(d => d.hasData && !d.isFuture && d.turnoverChange !== null)
-  if (validData.length === 0) return 0
-  let diff = 0
-  for (const d of validData) {
-    diff += d.turnoverChange
-  }
-  return diff / 1e8  // 转换为亿元
+  const change = header.value?.change
+  if (change == null || isNaN(change)) return 0
+  return change / 1e8  // 转换为亿元
 })
 
 const cumulativeDiffText = computed(() => {
