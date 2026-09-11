@@ -20,6 +20,7 @@
       >
         {{ autoRefresh ? `自动刷新 ${countdown}s` : '30s自动刷新' }}
       </Button>
+
     </div>
 
     <!-- 错误提示 -->
@@ -84,6 +85,7 @@
             <TableHead class="w-[90px]">
               <SortableHeader label="价-净值" sort-key="navDiff" :current="sortKey" :order="sortOrder" @sort="onSort" />
             </TableHead>
+            <TableHead label="申购状态" class="w-[100px]" />
             <TableHead label="套利方向" class="w-[100px]" />
           </TableRow>
         </TableHeader>
@@ -144,6 +146,24 @@
             </TableCell>
             <TableCell>
               <span
+                v-if="row.purchaseStatus"
+                class="text-xs px-1.5 py-0.5 rounded font-medium"
+                :class="purchaseStatusClass(row.purchaseStatus)"
+                :title="row.purchaseNote || ''"
+              >
+                {{ row.purchaseStatus }}
+              </span>
+              <button
+                v-else
+                class="text-xs text-blue-500 hover:text-blue-700 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="rowPurchaseLoading[row.code]"
+                @click="fetchRowPurchaseStatus(row.code)"
+              >
+                {{ rowPurchaseLoading[row.code] ? '查询中...' : '查询' }}
+              </button>
+            </TableCell>
+            <TableCell>
+              <span
                 class="text-xs px-1.5 py-0.5 rounded font-medium"
                 :class="row.premiumRate > 0
                   ? 'bg-red-100 text-red-600'
@@ -175,7 +195,9 @@ const {
   autoRefresh,
   countdown,
   stats,
+  rowPurchaseLoading,
   fetchLofData,
+  fetchRowPurchaseStatus,
   toggleAutoRefresh
 } = useLofArbitrageData()
 
@@ -239,6 +261,14 @@ const SortableHeader = {
 function xueqiuUrl(code) {
   const prefix = code.startsWith('16') ? 'SZ' : 'SH'
   return `https://xueqiu.com/S/${prefix}${code}`
+}
+
+// 申购状态样式
+function purchaseStatusClass(status) {
+  if (status === '暂停申购') return 'bg-red-100 text-red-600'
+  if (status === '限制大额申购') return 'bg-yellow-100 text-yellow-600'
+  if (status === '无限制') return 'bg-green-100 text-green-600'
+  return 'bg-gray-100 text-gray-600'
 }
 
 // 折溢价率样式

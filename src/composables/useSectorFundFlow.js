@@ -130,10 +130,10 @@ function formatAmount(val) {
   return `${sign}${abs.toFixed(0)}`
 }
 
-// 格式化百分比（API 返回基点，如 572 = 5.72%）
+// 格式化百分比（API 直接返回百分比数值，如 5.72 = 5.72%）
 function formatPercent(val) {
   if (val === null || val === undefined || val === '' || isNaN(val)) return '-'
-  return `${(val / 100).toFixed(2)}%`
+  return `${Number(val).toFixed(2)}%`
 }
 
 // 获取资金流向颜色
@@ -307,9 +307,9 @@ async function fetchData(targetType) {
       tableData.value = diff.map(item => ({
         code: item.f12,
         name: item.f14,
-        changePercent: item.f3,          // 基点
+        changePercent: item.f3,           // 涨跌幅(%)
         mainNetInflow: item.f62,          // 元
-        mainNetInflowPercent: item.f184,  // 基点
+        mainNetInflowPercent: item.f184,  // 主力净流入占比(%)
         superLargeNetInflow: item.f66,    // 元
         largeNetInflow: item.f78,         // 元
         topStockName: item.f128,

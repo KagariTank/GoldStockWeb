@@ -9,7 +9,9 @@ import { createAutoRefreshTimer } from './useTimerManager.js'
 // 腾讯 JSONP 字段索引（~分隔，88字段）：
 //   [1] 名称  [2] 代码  [3] 现价  [4] 昨收
 //   [30] 时间  [33] 涨跌幅%
-//   [61] 类型(LOF)  [63] 折溢价率%  [81] 基金净值
+//   [61] 类型(LOF)  [77] 折溢价率%  [81] 基金净值
+//   - [77] 为腾讯权威折溢价率字段，经验证 = (现价 - 单位净值)/单位净值×100%，398/398 全量精确匹配
+//   - 注意：[62]/[63] 不是折溢价率（易混淆），切勿使用
 //
 // LOF 代码列表：内置（腾讯行情接口权威确认的 LOF 品种快照，2026-09）
 //   - 16xxxx → sz，50xxxx → sh
@@ -67,6 +69,8 @@ const tableData = ref([])      // LOF 列表（已按折溢价率绝对值降序
 const loading = ref(false)
 const lastUpdate = ref('')
 const error = ref('')
+// 按行 loading 状态：code -> boolean
+const rowPurchaseLoading = ref({})
 
 // ===== GBK 解码 =====
 // 浏览器端使用 TextDecoder('gbk') 解码腾讯返回的 GBK 数据
@@ -109,7 +113,7 @@ async function fetchBatchQuotes() {
       const code = parts[2]
       const price = parseFloat(parts[3]) || 0
       const nav = parseFloat(parts[81]) || 0
-      const premium = parseFloat(parts[63]) || 0
+      const premium = parseFloat(parts[77]) || 0
 
       // 过滤异常：现价<=0 或 现价=1.0（疑似停牌/转型/未上市）
       if (price <= 0 || price === 1.0) continue
@@ -132,6 +136,50 @@ async function fetchBatchQuotes() {
   }
 
   return results
+}
+
+// ===== 申购状态获取（东财天天基金接口，逐只查询） =====
+// 接口：fundmobapi.eastmoney.com/FundMNewApi/FundMNBasicInformation
+//   - CORS * 全开，浏览器端可直接请求
+//   - 只支持逐只查询（批量接口 61136 不可用），故按按钮触发，不对全量轮询
+//   - 返回字段：SGZT(申购状态) SGZTMARK(备注) SHZT(赎回状态) MAXSG(申购限额)
+const EM_FUND_INFO = 'https://fundmobapi.eastmoney.com/FundMNewApi/FundMNBasicInformation'
+
+async function fetchPurchaseStatus(code) {
+  const url = `${EM_FUND_INFO}?FCODE=${code}&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0`
+  const res = await fetch(url)
+  const json = await res.json()
+  const d = json.Datas || {}
+  return {
+    purchaseStatus: d.SGZT || '',   // 无限制 / 限制大额申购 / 暂停申购
+    purchaseNote: d.SGZTMARK || '', // 备注说明
+    redeemStatus: d.SHZT || '',    // 赎回状态
+  }
+}
+
+// 单行获取申购状态
+async function fetchRowPurchaseStatus(code) {
+  if (rowPurchaseLoading.value[code]) return
+  rowPurchaseLoading.value = { ...rowPurchaseLoading.value, [code]: true }
+  try {
+    const row = tableData.value.find(r => r.code === code)
+    if (!row) return
+    const info = await fetchPurchaseStatus(code)
+    row.purchaseStatus = info.purchaseStatus
+    row.purchaseNote = info.purchaseNote
+    row.redeemStatus = info.redeemStatus
+    tableData.value = [...tableData.value]
+  } catch {
+    const row = tableData.value.find(r => r.code === code)
+    if (row) {
+      row.purchaseStatus = '获取失败'
+      row.purchaseNote = ''
+      row.redeemStatus = ''
+      tableData.value = [...tableData.value]
+    }
+  } finally {
+    rowPurchaseLoading.value = { ...rowPurchaseLoading.value, [code]: false }
+  }
 }
 
 // ===== 自动刷新定时器（30s，走统一管理） =====
@@ -203,7 +251,9 @@ export function useLofArbitrageData() {
     autoRefresh,
     countdown,
     stats,
+    rowPurchaseLoading,
     fetchLofData,
+    fetchRowPurchaseStatus,
     toggleAutoRefresh
   }
 }

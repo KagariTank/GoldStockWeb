@@ -54,14 +54,14 @@
           <span class="w-3 h-3 rounded-full inline-block border border-muted-foreground/50 bg-muted"></span>
           气泡大小 = 今日成交额
         </span>
-        <span class="text-xs text-muted-foreground">稀疏象限全标 + 右上成交额前12</span>
+        <span class="text-xs text-muted-foreground">稀疏象限全标 + 密集象限 Top15 + 成交额兜底</span>
       </div>
 
       <!-- 图表容器（有数据才渲染，避免空坐标轴占位） -->
-      <div v-if="matrixData.length === 0" class="flex items-center justify-center text-muted-foreground text-sm" style="height: 420px">
+      <div v-if="matrixData.length === 0" class="flex items-center justify-center text-muted-foreground text-sm" style="height: 500px">
         {{ loading ? '加载中...' : '等待数据...' }}
       </div>
-      <div v-else ref="chartRef" class="w-full" style="height: 420px"></div>
+      <div v-else ref="chartRef" class="w-full" style="height: 500px"></div>
     </div>
   </div>
 </template>
@@ -114,15 +114,17 @@ function buildOption() {
   const axisLineColor = isDarkMode ? '#404040' : '#d1d5db'
   const splitColor = isDarkMode ? '#262626' : '#f3f4f6'
 
-  // 气泡大小映射：成交额 300亿 ~ 2万亿 → 8 ~ 60
+  // 气泡大小映射：对数缩放（成交额跨度大，线性映射小气泡几乎不可见）
   const amounts = points.map(p => p.value[2]).filter(a => a > 0)
   const minAmt = amounts.length ? Math.min(...amounts) : 0
   const maxAmt = amounts.length ? Math.max(...amounts) : 1
-  const sizeRange = [6, 34]
+  const sizeRange = [5, 30]
+  const logMin = Math.log(Math.max(minAmt, 1))
+  const logMax = Math.log(Math.max(maxAmt, 1))
   const sizeOf = (amt) => {
-    if (amt <= 0) return 8
-    if (maxAmt === minAmt) return (sizeRange[0] + sizeRange[1]) / 2
-    const t = (amt - minAmt) / (maxAmt - minAmt)
+    if (amt <= 0) return 6
+    if (logMax === logMin) return (sizeRange[0] + sizeRange[1]) / 2
+    const t = (Math.log(amt) - logMin) / (logMax - logMin)
     return sizeRange[0] + t * (sizeRange[1] - sizeRange[0])
   }
 
@@ -130,28 +132,27 @@ function buildOption() {
   const xZero = 0
   const yZero = 0
 
-  // 标注策略：稀疏象限全标注 + 密集象限 TopN + 成交额兜底
-  // 象限分布实测：右上 55 个（极密集）、左上 9 个、左下 9 个、右下 1 个
-  // 左上/左下/右下空间充裕 → 全部标注；右上按成交额取 TopN 作为候选，交给 hideOverlap 自动避让
+  // 标注策略：按象限密度分级标注 + 成交额兜底
+  // 74 个有效板块分布：右上 39（密集）、左上 20、左下 11、右下 4
   const labelTop = new Set()
-  // 右上：成交额前 12 名（55 个板块最密集，控制候选数量避免重叠）
-  points
-    .filter(p => p.value[0] >= 0 && p.value[1] >= 0)
-    .sort((a, b) => b.value[2] - a.value[2])
-    .slice(0, 12)
-    .forEach(p => labelTop.add(p.name))
-  // 左上（5日<0 20日>0）：仅 9 个，全部标注
-  points.filter(p => p.value[0] < 0 && p.value[1] >= 0).forEach(p => labelTop.add(p.name))
-  // 左下（5日<0 20日<0）：仅 9 个，全部标注
-  points.filter(p => p.value[0] < 0 && p.value[1] < 0).forEach(p => labelTop.add(p.name))
-  // 右下（5日>0 20日<0）：仅 1 个，全部标注
-  points.filter(p => p.value[0] >= 0 && p.value[1] < 0).forEach(p => labelTop.add(p.name))
-  // 成交额前 8 名兜底（大板块必须显示，无论象限）
-  points
-    .slice()
-    .sort((a, b) => b.value[2] - a.value[2])
-    .slice(0, 8)
-    .forEach(p => labelTop.add(p.name))
+  const quadCounts = {
+    RU: points.filter(p => p.value[0] >= 0 && p.value[1] >= 0).length,
+    LU: points.filter(p => p.value[0] < 0 && p.value[1] >= 0).length,
+    LD: points.filter(p => p.value[0] < 0 && p.value[1] < 0).length,
+    RD: points.filter(p => p.value[0] >= 0 && p.value[1] < 0).length
+  }
+  // 各象限标注上限：密集象限少标，稀疏象限全标
+  const quadLimits = { RU: 15, LU: 999, LD: 999, RD: 999 }
+  const labelByQuad = (q, pts) => {
+    const limit = quadLimits[q]
+    pts.sort((a, b) => b.value[2] - a.value[2]).slice(0, limit).forEach(p => labelTop.add(p.name))
+  }
+  labelByQuad('RU', points.filter(p => p.value[0] >= 0 && p.value[1] >= 0))
+  labelByQuad('LU', points.filter(p => p.value[0] < 0 && p.value[1] >= 0))
+  labelByQuad('LD', points.filter(p => p.value[0] < 0 && p.value[1] < 0))
+  labelByQuad('RD', points.filter(p => p.value[0] >= 0 && p.value[1] < 0))
+  // 成交额前 10 名兜底
+  points.slice().sort((a, b) => b.value[2] - a.value[2]).slice(0, 10).forEach(p => labelTop.add(p.name))
 
   // 象限标签：计算坐标轴边界（与 axis min/max 逻辑一致）
   const allX = points.map(p => p.value[0])
@@ -224,9 +225,9 @@ function buildOption() {
           mainInflow: p.mainInflow,
           symbolSize: sizeOf(p.value[2]),
           itemStyle: {
-            color: p.chg60 >= 0 ? 'rgba(245, 108, 108, 0.5)' : 'rgba(103, 194, 58, 0.5)',
-            borderColor: p.chg60 >= 0 ? '#f56c6c' : '#67c23a',
-            borderWidth: 1.5
+            color: p.chg60 >= 0 ? 'rgba(245, 108, 108, 0.35)' : 'rgba(103, 194, 58, 0.35)',
+            borderColor: p.chg60 >= 0 ? 'rgba(245, 108, 108, 0.8)' : 'rgba(103, 194, 58, 0.8)',
+            borderWidth: 1
           },
           label: {
             show: labelTop.has(p.name),
