@@ -30,7 +30,6 @@
             <TableHead label="每10股股息" class="w-[130px]" />
             <TableHead label="股息率" class="w-[100px]" />
             <TableHead label="PE(TTM)" class="w-[80px]" />
-            <TableHead label="PE(静)" class="w-[80px]" />
             <TableHead label="PB" class="w-[70px]" />
             <TableHead label="总市值" class="w-[90px]" />
             <TableHead label="流通市值" class="w-[90px]" />
@@ -101,9 +100,6 @@
             </TableCell>
             <TableCell>
               <span class="font-mono text-sm" :class="row.peTtm ? '' : 'text-muted-foreground'">{{ row.peTtm ? row.peTtm.toFixed(2) : '-' }}</span>
-            </TableCell>
-            <TableCell>
-              <span class="font-mono text-sm" :class="row.peStatic ? '' : 'text-muted-foreground'">{{ row.peStatic ? row.peStatic.toFixed(2) : '-' }}</span>
             </TableCell>
             <TableCell>
               <span class="font-mono text-sm" :class="row.pb ? '' : 'text-muted-foreground'">{{ row.pb ? row.pb.toFixed(2) : '-' }}</span>

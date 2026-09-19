@@ -99,7 +99,6 @@ const fetchDividendData = async () => {
         const nowPrice = parseFloat(d[3])
         const prevClose = parseFloat(d[4]) || 0
         const peTtm = parseFloat(d[39]) || null
-        const peStatic = parseFloat(d[58]) || null
         const pb = parseFloat(d[46]) || null
         const totalMv = parseFloat(d[45]) || null  // 总市值（亿）
         const floatMv = parseFloat(d[44]) || null  // 流通市值（亿）
@@ -109,7 +108,6 @@ const fetchDividendData = async () => {
           item.price = nowPrice
           item.prevClose = prevClose
           item.peTtm = peTtm
-          item.peStatic = peStatic
           item.pb = pb
           item.totalMv = totalMv
           item.floatMv = floatMv
@@ -125,7 +123,6 @@ const fetchDividendData = async () => {
         row.price = stockItem.price || 0
         row.prevClose = stockItem.prevClose || 0
         row.peTtm = stockItem.peTtm
-        row.peStatic = stockItem.peStatic
         row.pb = stockItem.pb
         row.totalMv = stockItem.totalMv
         row.floatMv = stockItem.floatMv
@@ -143,7 +140,6 @@ const fetchDividendData = async () => {
           price: item.price || 0,
           prevClose: item.prevClose || 0,
           peTtm: item.peTtm,
-          peStatic: item.peStatic,
           pb: item.pb,
           totalMv: item.totalMv,
           floatMv: item.floatMv,
