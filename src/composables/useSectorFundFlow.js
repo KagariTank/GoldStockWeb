@@ -105,7 +105,8 @@ const sectorCodeMap = {
 }
 
 // 请求的字段（push2 clist 格式）
-const FIELDS = 'f3,f12,f14,f62,f184,f66,f78,f128,f140'
+// f62=当日主力净流入 f164=5日主力净流入 f267=10日主力净流入（累计口径）
+const FIELDS = 'f3,f12,f14,f62,f164,f184,f66,f78,f128,f140'
 
 // push2delay clist 接口（东财延迟行情子域，CORS 全开，浏览器可直连）
 // 注：push2.eastmoney.com 对部分 IP 有间歇性风控（empty reply），push2delay 为备用子域实测稳定
@@ -309,6 +310,7 @@ async function fetchData(targetType) {
         name: item.f14,
         changePercent: item.f3,           // 涨跌幅(%)
         mainNetInflow: item.f62,          // 元
+        fiveDayNetInflow: item.f164,      // 近5日主力净流入（元，累计口径，可能为 '-'）
         mainNetInflowPercent: item.f184,  // 主力净流入占比(%)
         superLargeNetInflow: item.f66,    // 元
         largeNetInflow: item.f78,         // 元

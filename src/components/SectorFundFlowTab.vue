@@ -99,6 +99,9 @@
               <TableHead class="w-[120px]">
                 <SortableHeader label="主力净流入" sort-key="mainNetInflow" :current="sortKey" :order="sortOrder" @sort="onSort" />
               </TableHead>
+              <TableHead class="w-[120px]">
+                <SortableHeader label="近5日净流入" sort-key="fiveDayNetInflow" :current="sortKey" :order="sortOrder" @sort="onSort" />
+              </TableHead>
               <TableHead class="w-[100px]">
                 <SortableHeader label="主力净占比" sort-key="mainNetInflowPercent" :current="sortKey" :order="sortOrder" @sort="onSort" />
               </TableHead>
@@ -131,6 +134,21 @@
                 <span class="font-mono font-semibold" :class="getFlowClass(row.mainNetInflow)">
                   {{ formatAmount(row.mainNetInflow) }}
                 </span>
+              </TableCell>
+              <TableCell>
+                <span v-if="hasFiveDay(row.fiveDayNetInflow)" class="inline-flex items-center gap-1">
+                  <span class="font-mono text-sm" :class="getFlowClass(row.fiveDayNetInflow)">
+                    {{ formatAmount(row.fiveDayNetInflow) }}
+                  </span>
+                  <span
+                    v-if="row.fiveDayNetInflow > 0"
+                    class="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600 font-medium"
+                    title="近5日主力累计净流入为正"
+                  >
+                    5日净流入
+                  </span>
+                </span>
+                <span v-else class="text-muted-foreground font-mono text-sm">-</span>
               </TableCell>
               <TableCell>
                 <span class="font-mono" :class="getFlowClass(row.mainNetInflowPercent)">
@@ -259,6 +277,11 @@ const totalMainInflow = computed(() => {
   }, 0)
 })
 
+// 判断近5日净流入是否有有效数值（API 可能返回 '-'）
+function hasFiveDay(val) {
+  return val !== '-' && val !== null && val !== undefined && !isNaN(parseFloat(val))
+}
+
 const inflowCount = computed(() => {
   return tableData.value.filter(row => row.mainNetInflow > 0).length
 })
@@ -299,6 +322,8 @@ const sectorCandleData = computed(() => {
     result.push({
       code: sector.code,
       name: sector.name,
+      // 近5日主力净流入（元；API 可能返回 '-'，无效时置 null）
+      fiveDay: hasFiveDay(sector.fiveDayNetInflow) ? parseFloat(sector.fiveDayNetInflow) : null,
       // ECharts candlestick: [open, close, low, high]
       // open 恒为 0，需保证：low ≤ min(open, close), high ≥ max(open, close)
       data: [
@@ -338,12 +363,20 @@ function buildCandleChartOption() {
         const change = candle.change
         const isUp = close >= open
         const color = isUp ? '#ff6b6b' : '#26de81'
+        // 近5日净流入（元 → 亿），仅在有有效值时展示
+        let fiveDayHtml = ''
+        if (candle.fiveDay != null && candle.fiveDay !== 0) {
+          const fiveColor = candle.fiveDay > 0 ? '#ff6b6b' : '#26de81'
+          const fiveVal = (candle.fiveDay / 1e8).toFixed(2)
+          fiveDayHtml = `<div>近5日净流入: <span style="font-weight:700;color:${fiveColor}">${candle.fiveDay > 0 ? '+' : ''}${fiveVal}亿</span></div>`
+        }
         return `<div style="font-weight:600;margin-bottom:4px">${candle.name}</div>
                 <div>开盘: <span style="font-weight:700">${open.toFixed(2)}亿</span></div>
                 <div>收盘: <span style="font-weight:700;color:${color}">${close.toFixed(2)}亿</span></div>
                 <div>最高: <span style="font-weight:700">${high.toFixed(2)}亿</span></div>
                 <div>最低: <span style="font-weight:700">${low.toFixed(2)}亿</span></div>
-                <div>变化: <span style="font-weight:700;color:${color}">${change >= 0 ? '+' : ''}${change.toFixed(2)}亿</span></div>`
+                <div>变化: <span style="font-weight:700;color:${color}">${change >= 0 ? '+' : ''}${change.toFixed(2)}亿</span></div>
+                ${fiveDayHtml}`
       }
     },
     grid: { left: 60, right: 25, top: 55, bottom: 60 },
@@ -355,7 +388,18 @@ function buildCandleChartOption() {
         fontWeight: 60,
         color: '#444',
         interval: 0,
-        rotate: 25
+        rotate: 25,
+        formatter: (name, idx) => {
+          const candle = candles[idx]
+          if (candle && candle.fiveDay != null && candle.fiveDay > 0) {
+            return `{five|${name} }{tag|5日}`
+          }
+          return name
+        },
+        rich: {
+          five: { fontSize: 12, color: '#444' },
+          tag: { fontSize: 9, color: '#fff', backgroundColor: '#e05252', borderRadius: 3, padding: [1, 3], fontWeight: 'bold' }
+        }
       },
       axisLine: { lineStyle: { color: '#ccc' } },
       axisTick: { show: false }
